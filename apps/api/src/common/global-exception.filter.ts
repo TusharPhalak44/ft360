@@ -10,6 +10,7 @@ import {
 import type { Response } from 'express';
 import type { ApiErrorResponse, ApiFieldError } from '@ft360/shared-types';
 import type { RequestWithCorrelation } from './correlation-id.interceptor';
+import { isValidUuid } from './uuid.util';
 
 interface PgLikeError {
   code?: string;
@@ -25,7 +26,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const req = ctx.getRequest<RequestWithCorrelation>();
     const res = ctx.getResponse<Response>();
 
-    const correlationId = req.correlationId ?? randomUUID();
+    const incomingHeader = req.headers['x-correlation-id'];
+    const rawHeaderId = Array.isArray(incomingHeader) ? incomingHeader[0] : incomingHeader;
+    const correlationId =
+      req.correlationId ?? (isValidUuid(rawHeaderId) ? rawHeaderId.toLowerCase() : randomUUID());
     res.setHeader('X-Correlation-Id', correlationId);
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;

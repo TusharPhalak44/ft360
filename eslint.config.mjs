@@ -7,6 +7,7 @@ export default tseslint.config(
       '**/node_modules/**',
       '**/dist/**',
       '**/.next/**',
+      '**/.next-build/**',
       '**/coverage/**',
       '**/playwright-report/**',
       '**/test-results/**',

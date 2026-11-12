@@ -1,8 +1,12 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { APP_CONFIG, type AppEnvConfig } from '../config/env.config';
+import {
+  FoundationCanaryProcessor,
+  SYSTEM_MAINTENANCE_QUEUE,
+} from './foundation-canary.processor';
 
-export const SYSTEM_MAINTENANCE_QUEUE = 'system-maintenance';
+export { SYSTEM_MAINTENANCE_QUEUE } from './foundation-canary.processor';
 
 @Module({
   imports: [
@@ -19,13 +23,9 @@ export const SYSTEM_MAINTENANCE_QUEUE = 'system-maintenance';
         },
         prefix: 'ft360:q',
         defaultJobOptions: {
-          attempts: 3,
-          backoff: {
-            type: 'exponential',
-            delay: 1000,
-          },
+          attempts: 1,
           removeOnComplete: 100,
-          removeOnFail: 500,
+          removeOnFail: 200,
         },
       }),
     }),
@@ -33,7 +33,7 @@ export const SYSTEM_MAINTENANCE_QUEUE = 'system-maintenance';
       name: SYSTEM_MAINTENANCE_QUEUE,
     }),
   ],
+  providers: [FoundationCanaryProcessor],
   exports: [BullModule],
 })
 export class QueueFoundationModule {}
-

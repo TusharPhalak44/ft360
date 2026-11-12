@@ -1,5 +1,7 @@
+import { getQueueToken } from '@nestjs/bullmq';
 import { type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { QueueEvents, type Queue } from 'bullmq';
 import { Pool } from 'pg';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
@@ -7,8 +9,15 @@ import { configureNestApp } from '../../src/bootstrap';
 import { RedisService } from '../../src/cache/redis.service';
 import { APP_CONFIG, loadAppConfig, type AppEnvConfig } from '../../src/config/env.config';
 import { DatabasePoolService } from '../../src/database/database-pool.service';
+import { InvalidTenantContextError } from '../../src/database/database.types';
 import { SqlMigrationRunner } from '../../src/database/migrations/migration-runner';
 import { TenantTransactionManager } from '../../src/database/tenant-transaction.manager';
+import {
+  SYSTEM_MAINTENANCE_QUEUE,
+  type CanaryJobPayload,
+  type CanaryJobResult,
+} from '../../src/jobs/foundation-canary.processor';
+import { createTenantJobEnvelope } from '../../src/jobs/tenant-job-envelope';
 
 const TENANT_ALPHA = '0195f3a2-7c40-7b12-9a10-4e8d21b91111';
 const TENANT_BETA = '0195f3a2-7c40-7b12-9a10-4e8d21b92222';
@@ -16,12 +25,14 @@ const USER_ALPHA = '0195f3a2-7c40-7b12-9a10-4e8d21b9aaaa';
 const USER_BETA = '0195f3a2-7c40-7b12-9a10-4e8d21b9bbbb';
 const CORR_ID = '0195f3a2-7c40-7b12-9a10-4e8d21b9cccc';
 
-describe('Phase 1 Integration & Database RLS Isolation Suite (Real PostgreSQL 18 + Redis)', () => {
+describe('Phase 1 Live Infrastructure, PostgreSQL 18 RLS, Pool & BullMQ Suite', () => {
   let app: INestApplication;
   let config: AppEnvConfig;
   let dbPool: DatabasePoolService;
   let txManager: TenantTransactionManager;
   let redisService: RedisService;
+  let maintenanceQueue: Queue;
+  let queueEvents: QueueEvents;
 
   beforeAll(async () => {
     config = loadAppConfig();
@@ -38,12 +49,12 @@ describe('Phase 1 Integration & Database RLS Isolation Suite (Real PostgreSQL 18
       await runner.close();
     }
 
-    // 2. Boot full NestJS application against real PostgreSQL 18 + Redis
+    // 2. Boot full NestJS application (including BullMQ WorkerHost) against real PostgreSQL 18 + Redis
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
     })
       .overrideProvider(APP_CONFIG)
-      .useValue({ ...config, database: { ...config.database, poolMin: 1, poolMax: 4 } })
+      .useValue({ ...config, database: { ...config.database, poolMin: 1, poolMax: 6 } })
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -53,6 +64,18 @@ describe('Phase 1 Integration & Database RLS Isolation Suite (Real PostgreSQL 18
     dbPool = app.get(DatabasePoolService);
     txManager = app.get(TenantTransactionManager);
     redisService = app.get(RedisService);
+    maintenanceQueue = app.get<Queue>(getQueueToken(SYSTEM_MAINTENANCE_QUEUE));
+
+    queueEvents = new QueueEvents(SYSTEM_MAINTENANCE_QUEUE, {
+      prefix: 'ft360:q',
+      connection: {
+        host: config.redis.host,
+        port: config.redis.port,
+        password: config.redis.password,
+        db: config.redis.queueDb,
+      },
+    });
+    await queueEvents.waitUntilReady();
 
     // Clean any leftover canary rows inside isolated tenant transactions
     for (const [tid, uid] of [
@@ -67,24 +90,39 @@ describe('Phase 1 Integration & Database RLS Isolation Suite (Real PostgreSQL 18
   });
 
   afterAll(async () => {
+    if (queueEvents) {
+      await queueEvents.close();
+    }
     if (app) {
       await app.close();
     }
   });
 
-  it('enforces least-privilege runtime DB role (non-owner, NOSUPERUSER, NOBYPASSRLS) and FORCE RLS', async () => {
+  it('confirms actual PostgreSQL host/port, ft360_app least-privilege permissions, and migration SHA-256 checksums', async () => {
     const posture = await dbPool.queryUnscoped<{
+      server_addr: string;
+      server_port: number;
       current_user: string;
       rolsuper: boolean;
       rolbypassrls: boolean;
+      rolcreatedb: boolean;
+      rolcreaterole: boolean;
+      rolinherit: boolean;
+      owned_tables: string;
       tableowner: string;
       relrowsecurity: boolean;
       relforcerowsecurity: boolean;
     }>(
       `SELECT
+         host(inet_server_addr()) AS server_addr,
+         inet_server_port() AS server_port,
          current_user::text AS current_user,
          r.rolsuper,
          r.rolbypassrls,
+         r.rolcreatedb,
+         r.rolcreaterole,
+         r.rolinherit,
+         (SELECT COUNT(*)::text FROM pg_tables WHERE schemaname = 'public' AND tableowner = current_user) AS owned_tables,
          t.tableowner,
          c.relrowsecurity,
          c.relforcerowsecurity
@@ -98,14 +136,47 @@ describe('Phase 1 Integration & Database RLS Isolation Suite (Real PostgreSQL 18
 
     const row = posture.rows[0];
     expect(row).toBeDefined();
+    expect(row.current_user).toBe('ft360_app');
     expect(row.rolsuper).toBe(false);
     expect(row.rolbypassrls).toBe(false);
-    expect(row.tableowner).not.toBe(row.current_user);
+    expect(row.rolcreatedb).toBe(false);
+    expect(row.rolcreaterole).toBe(false);
+    expect(row.rolinherit).toBe(false);
+    expect(row.owned_tables).toBe('0');
+    expect(row.tableowner).toBe('ft360_migrator');
     expect(row.relrowsecurity).toBe(true);
     expect(row.relforcerowsecurity).toBe(true);
+
+    // Verify ft360_app cannot execute DDL (CREATE TABLE / DROP TABLE denied with 42501)
+    await expect(
+      dbPool.queryUnscoped('CREATE TABLE public.unauthorized_ddl_attempt (id int)'),
+    ).rejects.toMatchObject({ code: '42501' });
+    await expect(
+      dbPool.queryUnscoped('DROP TABLE public.rls_isolation_canary'),
+    ).rejects.toMatchObject({ code: '42501' });
+
+    // Verify schema_migrations rows and exact SHA-256 checksum parity with disk files
+    const runner = new SqlMigrationRunner(config.database.migratorUrl);
+    try {
+      const diskMigrations = runner.discoverMigrations();
+      const dbLedger = await dbPool.queryUnscoped<{
+        version: string;
+        name: string;
+        checksum_sha256: string;
+      }>(`SELECT version, name, checksum_sha256 FROM public.schema_migrations ORDER BY version ASC`);
+
+      expect(dbLedger.rows.length).toBe(diskMigrations.length);
+      for (let i = 0; i < diskMigrations.length; i++) {
+        expect(dbLedger.rows[i].version).toBe(diskMigrations[i].version);
+        expect(dbLedger.rows[i].name).toBe(diskMigrations[i].name);
+        expect(dbLedger.rows[i].checksum_sha256).toBe(diskMigrations[i].checksumSha256);
+      }
+    } finally {
+      await runner.close();
+    }
   });
 
-  it('isolates Tenant Alpha and Tenant Beta records and blocks cross-tenant INSERT/UPDATE/DELETE', async () => {
+  it('enforces cross-tenant RLS isolation and verifies concurrent connection pooling across tenants', async () => {
     const alphaInsert = await txManager.withTenantTransaction(
       { tenantId: TENANT_ALPHA, actorUserId: USER_ALPHA, correlationId: CORR_ID },
       (tx) =>
@@ -128,7 +199,7 @@ describe('Phase 1 Integration & Database RLS Isolation Suite (Real PostgreSQL 18
         ),
     );
 
-    // Tenant Beta cannot SELECT, UPDATE, or DELETE Tenant Alpha's row, nor INSERT with Tenant Alpha's tenant_id
+    // Negative cross-tenant checks from Tenant Beta
     await txManager.withTenantTransaction(
       { tenantId: TENANT_BETA, actorUserId: USER_BETA, correlationId: CORR_ID },
       async (tx) => {
@@ -157,16 +228,53 @@ describe('Phase 1 Integration & Database RLS Isolation Suite (Real PostgreSQL 18
         ).rejects.toMatchObject({ code: '42501' });
       },
     );
+
+    // Concurrent multi-connection pool stress check across Tenant Alpha and Tenant Beta simultaneously
+    const concurrentResults = await Promise.all(
+      Array.from({ length: 8 }, (_, idx) => {
+        const isAlpha = idx % 2 === 0;
+        const tid = isAlpha ? TENANT_ALPHA : TENANT_BETA;
+        const uid = isAlpha ? USER_ALPHA : USER_BETA;
+        return txManager.withTenantTransaction(
+          { tenantId: tid, actorUserId: uid, correlationId: CORR_ID },
+          async (tx) => {
+            const res = await tx.query<{ tenant_id: string }>(
+              `SELECT tenant_id FROM public.rls_isolation_canary`,
+            );
+            return { expected: tid, rows: res.rows.map((r) => r.tenant_id) };
+          },
+        );
+      }),
+    );
+
+    for (const item of concurrentResults) {
+      expect(item.rows.length).toBeGreaterThanOrEqual(1);
+      expect(item.rows.every((t) => t === item.expected)).toBe(true);
+    }
   });
 
-  it('fails closed when queries bypass TenantTransactionManager or supply malformed SQL tenant context', async () => {
-    // 1. Direct unscoped SELECT bypassing TenantTransactionManager -> 0 rows
-    const unscopedSelect = await dbPool.queryUnscoped(
-      `SELECT * FROM public.rls_isolation_canary`,
-    );
+  it('fails closed on missing/invalid tenant context and prevents queries from bypassing TenantTransactionManager', async () => {
+    // Missing/empty context rejected by TenantTransactionManager
+    await expect(
+      txManager.withTenantTransaction(
+        { tenantId: '', actorUserId: USER_ALPHA, correlationId: CORR_ID },
+        async () => 'never',
+      ),
+    ).rejects.toThrow(InvalidTenantContextError);
+
+    // Invalid context rejected by TenantTransactionManager
+    await expect(
+      txManager.withTenantTransaction(
+        { tenantId: 'invalid-tenant-context', actorUserId: USER_ALPHA, correlationId: CORR_ID },
+        async () => 'never',
+      ),
+    ).rejects.toThrow(InvalidTenantContextError);
+
+    // Direct unscoped SELECT bypassing TenantTransactionManager -> 0 rows
+    const unscopedSelect = await dbPool.queryUnscoped(`SELECT * FROM public.rls_isolation_canary`);
     expect(unscopedSelect.rows).toHaveLength(0);
 
-    // 2. Direct unscoped INSERT bypassing TenantTransactionManager -> rejected by PostgreSQL RLS (42501)
+    // Direct unscoped INSERT bypassing TenantTransactionManager -> rejected by PostgreSQL RLS (42501)
     await expect(
       dbPool.queryUnscoped(
         `INSERT INTO public.rls_isolation_canary (tenant_id, probe_label) VALUES ($1, $2)`,
@@ -174,7 +282,7 @@ describe('Phase 1 Integration & Database RLS Isolation Suite (Real PostgreSQL 18
       ),
     ).rejects.toMatchObject({ code: '42501' });
 
-    // 3. Malformed app.current_tenant_id in SQL fails closed to NULL (0 rows, no crash)
+    // Malformed app.current_tenant_id in SQL fails closed to NULL (0 rows)
     const client = await dbPool.connectClient();
     try {
       await client.query('BEGIN');
@@ -190,7 +298,7 @@ describe('Phase 1 Integration & Database RLS Isolation Suite (Real PostgreSQL 18
     }
   });
 
-  it('prevents connection-pool context leakage across COMMIT, ROLLBACK, and rogue session SET on a single-connection pool', async () => {
+  it('verifies transaction rollback atomicity and zero context leakage on single-connection pool reuse', async () => {
     const singleConnPool = new Pool({
       connectionString: config.database.appUrl,
       min: 1,
@@ -203,7 +311,7 @@ describe('Phase 1 Integration & Database RLS Isolation Suite (Real PostgreSQL 18
       } as unknown as DatabasePoolService;
       const singleTxMgr = new TenantTransactionManager(singlePoolService);
 
-      // Step A: Execute valid COMMIT under Tenant Alpha
+      // Step A: Valid COMMIT under Tenant Alpha
       await singleTxMgr.withTenantTransaction(
         { tenantId: TENANT_ALPHA, actorUserId: USER_ALPHA, correlationId: CORR_ID },
         async (tx) => {
@@ -212,16 +320,19 @@ describe('Phase 1 Integration & Database RLS Isolation Suite (Real PostgreSQL 18
         },
       );
 
-      // Reuse exact same physical connection without setting context -> must see 0 rows
+      // Reuse same physical connection without context -> 0 rows
       const afterCommit = await singleConnPool.query(`SELECT * FROM public.rls_isolation_canary`);
       expect(afterCommit.rows).toHaveLength(0);
 
-      // Step B: Execute failing transaction (ROLLBACK) under Tenant Alpha
+      // Step B: Insert row then throw inside transaction -> verify ROLLBACK discards row AND resets connection
       await expect(
         singleTxMgr.withTenantTransaction(
           { tenantId: TENANT_ALPHA, actorUserId: USER_ALPHA, correlationId: CORR_ID },
           async (tx) => {
-            await tx.query(`SELECT * FROM public.rls_isolation_canary`);
+            await tx.query(
+              `INSERT INTO public.rls_isolation_canary (tenant_id, probe_label) VALUES ($1, $2)`,
+              [TENANT_ALPHA, 'must-rollback-atomically'],
+            );
             throw new Error('force-rollback');
           },
         ),
@@ -230,17 +341,32 @@ describe('Phase 1 Integration & Database RLS Isolation Suite (Real PostgreSQL 18
       const afterRollback = await singleConnPool.query(`SELECT * FROM public.rls_isolation_canary`);
       expect(afterRollback.rows).toHaveLength(0);
 
-      // Step C: Simulate a rogue session-level SET on the pooled connection, then verify TenantTransactionManager sanitizes it
-      await singleConnPool.query(`SELECT set_config('app.current_tenant_id', $1, false)`, [TENANT_ALPHA]);
+      // Verify rolled-back row does not exist in Tenant Alpha
+      await singleTxMgr.withTenantTransaction(
+        { tenantId: TENANT_ALPHA, actorUserId: USER_ALPHA, correlationId: CORR_ID },
+        async (tx) => {
+          const check = await tx.query(
+            `SELECT * FROM public.rls_isolation_canary WHERE probe_label = $1`,
+            ['must-rollback-atomically'],
+          );
+          expect(check.rows).toHaveLength(0);
+        },
+      );
+
+      // Step C: Simulate rogue session-level SET on pooled connection -> TenantTransactionManager sanitizes it
+      await singleConnPool.query(`SELECT set_config('app.current_tenant_id', $1, false)`, [
+        TENANT_ALPHA,
+      ]);
       await singleTxMgr.withTenantTransaction(
         { tenantId: TENANT_BETA, actorUserId: USER_BETA, correlationId: CORR_ID },
         async (tx) => {
-          const rows = await tx.query<{ tenant_id: string }>(`SELECT tenant_id FROM public.rls_isolation_canary`);
+          const rows = await tx.query<{ tenant_id: string }>(
+            `SELECT tenant_id FROM public.rls_isolation_canary`,
+          );
           expect(rows.rows.every((r) => r.tenant_id === TENANT_BETA)).toBe(true);
         },
       );
 
-      // And after release, even the prior rogue session variable was wiped clean!
       const afterSanitize = await singleConnPool.query(`SELECT * FROM public.rls_isolation_canary`);
       expect(afterSanitize.rows).toHaveLength(0);
     } finally {
@@ -248,15 +374,85 @@ describe('Phase 1 Integration & Database RLS Isolation Suite (Real PostgreSQL 18
     }
   });
 
-  it('isolates Redis cache entries strictly by tenant UUID prefix', async () => {
+  it('verifies Redis tenant key isolation AND executes real BullMQ jobs (completion + failure rollback)', async () => {
+    // 1. Redis tenant key isolation
     await redisService.setTenantJson(TENANT_ALPHA, 'settings', 'theme', { color: 'blue' }, 30);
-    const alphaRead = await redisService.getTenantJson<{ color: string }>(TENANT_ALPHA, 'settings', 'theme');
-    const betaRead = await redisService.getTenantJson<{ color: string }>(TENANT_BETA, 'settings', 'theme');
-
+    const alphaRead = await redisService.getTenantJson<{ color: string }>(
+      TENANT_ALPHA,
+      'settings',
+      'theme',
+    );
+    const betaRead = await redisService.getTenantJson<{ color: string }>(
+      TENANT_BETA,
+      'settings',
+      'theme',
+    );
     expect(alphaRead).toEqual({ color: 'blue' });
     expect(betaRead).toBeNull();
-
     await redisService.deleteTenantKey(TENANT_ALPHA, 'settings', 'theme');
+
+    // 2. BullMQ queue creation + successful tenant-isolated background job execution
+    const successEnvelope = createTenantJobEnvelope<CanaryJobPayload>(
+      { tenantId: TENANT_ALPHA, actorUserId: USER_ALPHA, correlationId: CORR_ID },
+      { probeLabel: 'bullmq-alpha-completed-job' },
+    );
+    const successJob = await maintenanceQueue.add('canary-ok', successEnvelope);
+    const jobResult = (await successJob.waitUntilFinished(queueEvents, 10000)) as CanaryJobResult;
+
+    expect(jobResult.tenantId).toBe(TENANT_ALPHA);
+    expect(jobResult.probeLabel).toBe('bullmq-alpha-completed-job');
+
+    // Verify Tenant Alpha sees the job's DB write while Tenant Beta sees nothing
+    await txManager.withTenantTransaction(
+      { tenantId: TENANT_ALPHA, actorUserId: USER_ALPHA, correlationId: CORR_ID },
+      async (tx) => {
+        const res = await tx.query(
+          `SELECT id FROM public.rls_isolation_canary WHERE id = $1`,
+          [jobResult.insertedId],
+        );
+        expect(res.rowCount).toBe(1);
+      },
+    );
+    await txManager.withTenantTransaction(
+      { tenantId: TENANT_BETA, actorUserId: USER_BETA, correlationId: CORR_ID },
+      async (tx) => {
+        const res = await tx.query(
+          `SELECT id FROM public.rls_isolation_canary WHERE id = $1`,
+          [jobResult.insertedId],
+        );
+        expect(res.rowCount).toBe(0);
+      },
+    );
+
+    // 3. BullMQ job failure handling + DB transaction rollback on worker error
+    const failEnvelope = createTenantJobEnvelope<CanaryJobPayload>(
+      { tenantId: TENANT_ALPHA, actorUserId: USER_ALPHA, correlationId: CORR_ID },
+      { probeLabel: 'bullmq-must-rollback', simulateFailure: true },
+    );
+    const failingJob = await maintenanceQueue.add('canary-fail', failEnvelope);
+    await expect(failingJob.waitUntilFinished(queueEvents, 10000)).rejects.toThrow(
+      /Simulated BullMQ worker failure/,
+    );
+    expect(await failingJob.getState()).toBe('failed');
+
+    await txManager.withTenantTransaction(
+      { tenantId: TENANT_ALPHA, actorUserId: USER_ALPHA, correlationId: CORR_ID },
+      async (tx) => {
+        const res = await tx.query(
+          `SELECT id FROM public.rls_isolation_canary WHERE probe_label = $1`,
+          ['bullmq-must-rollback'],
+        );
+        expect(res.rowCount).toBe(0);
+      },
+    );
+
+    // 4. BullMQ rejection when background job lacks valid tenant envelope
+    const forgedJob = await maintenanceQueue.add('canary-forged', {
+      tenantId: 'not-a-valid-uuid',
+      payload: { probeLabel: 'forged' },
+    });
+    await expect(forgedJob.waitUntilFinished(queueEvents, 10000)).rejects.toThrow(/job\.tenantId/);
+    expect(await forgedJob.getState()).toBe('failed');
   });
 
   it('serves health, configurable branding, Swagger OpenAPI, and rejects untrusted tenant HTTP inputs', async () => {
@@ -300,4 +496,3 @@ describe('Phase 1 Integration & Database RLS Isolation Suite (Real PostgreSQL 18
     expect(spoofQueryRes.body.error.code).toBe('UNTRUSTED_TENANT_INPUT_REJECTED');
   });
 });
-
