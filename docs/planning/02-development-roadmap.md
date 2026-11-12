@@ -1,8 +1,8 @@
 # Development Roadmap
 
 **Last Updated:** 2026-11-13  
-**Status:** Phase 1 Approved – Ready for Phase 2 Authorization  
-**Version:** 0.1.2
+**Status:** Phase 1 Completed & Cloud CI Verified – Phase 2 Plan Ready for Authorization  
+**Version:** 0.1.3
 
 ---
 
@@ -19,7 +19,7 @@
 | Phase | Name | Key Deliverables | Exit Gate / Verification Criteria | Est. Duration (3 Devs) |
 |---|---|---|---|---|
 | **Phase 0** | **Project Audit & Architecture** | Environment inspection, stack confirmation, ADRs, multi-tenant & RLS design, ER diagrams, 32-module matrix, roadmap, QA strategy, cost/risk report | Approved by Tushar on `2026-11-12` | **APPROVED & COMPLETED** |
-| **Phase 1** | **Project Foundation** | Monorepo (`apps/web`, `apps/api`), Docker Compose + Local PG 18/Redis 8 runtime, Git branches & rules, native SQL migration CLI, Jest + Supertest + Playwright harness, GitHub Actions CI + Zero-ORM check | All local CI gates, migrations, RLS/Pool/BullMQ integration (`6/6`), unit/HTTP (`20/20`), and Playwright E2E (`1/1`) verified | **APPROVED & COMPLETED (`2026-11-13`; REMOTE PUSH PENDING GITHUB URL)** |
+| **Phase 1** | **Project Foundation** | Monorepo (`apps/web`, `apps/api`), Docker Compose + Local PG 18/Redis 8 runtime, Git branches & rules, native SQL migration CLI, Jest + Supertest + Playwright harness, GitHub Actions CI + Zero-ORM check | All local & GitHub Cloud CI gates (`#43302143641` & `#43302143632`), migrations, RLS/Pool/BullMQ (`6/6`), unit/HTTP (`20/20`), Playwright E2E (`1/1`), & `main` branch protection verified | **APPROVED, PUSHED & CLOUD CI GREEN (`2026-11-13`)** |
 | **Phase 2** | **Database Foundation** | Core SQL migrations (`0001`–`0005`), `ft360_migrator` vs `ft360_app` (`NOBYPASSRLS`) roles, `users`, `tenants`, `tenant_memberships`, composite FKs, RLS policies, `TenantTransactionManager` | Automated RLS catalog check + negative SQL isolation suite passing 100% | 1–1.5 Weeks |
 | **Phase 3** | **Platform Identity (M01, M03)** | Argon2id auth, JWT + rotating refresh sessions, password recovery, multi-tenant session switcher, global & tenant branding config endpoints, Platform Super Admin bootstrap | Unit + Supertest auth security suite (token replay, brute-force rate limit, branding load) | 1.5 Weeks |
 | **Phase 4** | **Tenant Management (M02, M04)** | Tenant registration, onboarding wizard, member invitations, activation/suspension kill-switch, `tenant_settings`, `tenant_branding_settings` | Suspended tenant access blocked within <1s across API & cache tests | 1.5 Weeks |
