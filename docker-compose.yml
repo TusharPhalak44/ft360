@@ -1,0 +1,99 @@
+name: ft360-local
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: ft360-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ft360_dev}
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-change_me_local_superuser_pw}
+      DB_MIGRATOR_USER: ${DB_MIGRATOR_USER:-ft360_migrator}
+      DB_MIGRATOR_PASSWORD: ${DB_MIGRATOR_PASSWORD:-change_me_local_migrator_pw}
+      DB_APP_USER: ${DB_APP_USER:-ft360_app}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:-change_me_local_app_pw}
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - ft360_postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER:-postgres} -d ${POSTGRES_DB:-ft360_dev}"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    container_name: ft360-redis
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --requirepass
+      - ${REDIS_PASSWORD:-change_me_local_redis_pw}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - ft360_redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=${REDIS_PASSWORD:-change_me_local_redis_pw} redis-cli ping | grep PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    container_name: ft360-api
+    profiles: ["full-stack"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      API_HOST: 0.0.0.0
+      API_PORT: 4000
+      DATABASE_MIGRATOR_URL: postgresql://${DB_MIGRATOR_USER:-ft360_migrator}:${DB_MIGRATOR_PASSWORD:-change_me_local_migrator_pw}@postgres:5432/${POSTGRES_DB:-ft360_dev}
+      DATABASE_APP_URL: postgresql://${DB_APP_USER:-ft360_app}:${DB_APP_PASSWORD:-change_me_local_app_pw}@postgres:5432/${POSTGRES_DB:-ft360_dev}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-change_me_local_redis_pw}
+      CORS_ALLOWED_ORIGINS: http://localhost:${WEB_PORT:-3000}
+      DEFAULT_PRODUCT_NAME: ${DEFAULT_PRODUCT_NAME:-FunnelTrack360}
+      DEFAULT_PRODUCT_TAGLINE: ${DEFAULT_PRODUCT_TAGLINE:-Enterprise Multi-Tenant CRM & Operations Suite}
+      DEFAULT_SUPPORT_EMAIL: ${DEFAULT_SUPPORT_EMAIL:-support@example.local}
+      DEFAULT_WEBSITE_URL: ${DEFAULT_WEBSITE_URL:-http://localhost:3000}
+      DEFAULT_PRIMARY_COLOR_HEX: ${DEFAULT_PRIMARY_COLOR_HEX:-#2563EB}
+      DEFAULT_ACCENT_COLOR_HEX: ${DEFAULT_ACCENT_COLOR_HEX:-#0F172A}
+    ports:
+      - "${API_PORT:-4000}:4000"
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    container_name: ft360-web
+    profiles: ["full-stack"]
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:${API_PORT:-4000}/api/v1
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+
+volumes:
+  ft360_postgres_data:
+  ft360_redis_data:
+

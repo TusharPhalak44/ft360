@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand-primary: #2563eb;
+  --brand-accent: #0f172a;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+}
+

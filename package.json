@@ -1,0 +1,40 @@
+{
+  "name": "funneltrack360-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multi-tenant SaaS CRM and Business Management Platform (Modular Monolith)",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
+  "scripts": {
+    "check:no-orm": "node scripts/check-no-orm.mjs",
+    "build": "npm run check:no-orm && npm run build --workspace=@ft360/shared-types && npm run build --workspace=@ft360/api && npm run build --workspace=@ft360/web",
+    "dev:api": "npm run dev --workspace=@ft360/api",
+    "dev:web": "npm run dev --workspace=@ft360/web",
+    "lint": "npm run check:no-orm && npm run lint --workspaces --if-present",
+    "typecheck": "npm run build --workspace=@ft360/shared-types && npm run typecheck --workspaces --if-present",
+    "test:unit": "npm run test:unit --workspace=@ft360/api",
+    "test:integration": "npm run test:integration --workspace=@ft360/api",
+    "test:e2e": "npm run test:e2e --workspace=@ft360/web",
+    "test": "npm run check:no-orm && npm run test:unit && npm run test:integration",
+    "db:migrate": "npm run db:migrate --workspace=@ft360/api",
+    "db:migrate:status": "npm run db:migrate:status --workspace=@ft360/api",
+    "db:migrate:rollback": "npm run db:migrate:rollback --workspace=@ft360/api",
+    "infra:up": "docker compose up -d postgres redis",
+    "infra:down": "docker compose stop postgres redis",
+    "infra:ps": "docker compose ps"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.22.0",
+    "eslint": "^9.22.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.26.1"
+  }
+}
+

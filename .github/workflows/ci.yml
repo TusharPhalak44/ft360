@@ -1,0 +1,132 @@
+name: Platform Foundation CI
+
+on:
+  push:
+    branches:
+      - main
+      - development
+  pull_request:
+    branches:
+      - main
+      - development
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  foundation-quality-and-security:
+    name: Build, Zero-ORM, Migrations, Unit, Integration & E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: ft360_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_superuser_pw
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d ft360_ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=15
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli -a ci_redis_pw ping"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=15
+        cmd: redis-server --appendonly yes --requirepass ci_redis_pw
+
+    env:
+      NODE_ENV: test
+      API_HOST: 127.0.0.1
+      API_PORT: 4000
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
+      SWAGGER_ENABLED: 'true'
+      DATABASE_MIGRATOR_URL: postgresql://ft360_migrator:ci_migrator_pw@127.0.0.1:5433/ft360_ci
+      DATABASE_APP_URL: postgresql://ft360_app:ci_app_pw@127.0.0.1:5433/ft360_ci
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ci_redis_pw
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:4000/api/v1
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Enforce Zero-ORM & Architecture Boundary Gate
+        run: npm run check:no-orm
+
+      - name: Provision PostgreSQL least-privilege roles (ft360_migrator & ft360_app)
+        env:
+          PGPASSWORD: ci_superuser_pw
+        run: |
+          psql -h 127.0.0.1 -p 5433 -U postgres -d ft360_ci -v ON_ERROR_STOP=1 <<'EOSQL'
+            CREATE ROLE ft360_migrator WITH LOGIN PASSWORD 'ci_migrator_pw' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+            CREATE ROLE ft360_app WITH LOGIN PASSWORD 'ci_app_pw' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT;
+            REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+            GRANT CONNECT ON DATABASE ft360_ci TO ft360_migrator, ft360_app;
+            GRANT USAGE, CREATE ON SCHEMA public TO ft360_migrator;
+            GRANT USAGE ON SCHEMA public TO ft360_app;
+            CREATE EXTENSION IF NOT EXISTS citext;
+            CREATE EXTENSION IF NOT EXISTS pgcrypto;
+            CREATE EXTENSION IF NOT EXISTS pg_trgm;
+            CREATE EXTENSION IF NOT EXISTS btree_gist;
+          EOSQL
+
+      - name: Lint all workspaces
+        run: npm run lint
+
+      - name: Typecheck all workspaces
+        run: npm run typecheck
+
+      - name: Execute SQL Migrations (Up -> Rollback -> Re-Up)
+        run: |
+          npm run db:migrate
+          npm run db:migrate:status
+          npm run db:migrate:rollback
+          npm run db:migrate
+
+      - name: Run Unit Test Suite (Jest)
+        run: npm run test:unit
+
+      - name: Run Integration & Negative RLS Isolation Suite (Supertest + PostgreSQL 18 + Redis)
+        run: npm run test:integration
+
+      - name: Build Shared Types, Backend, and Frontend
+        run: npm run build
+
+      - name: Install Playwright Chromium & Run E2E Communication Check
+        run: |
+          npx --workspace=@ft360/web playwright install --with-deps chromium
+          npm run start:prod --workspace=@ft360/api &
+          API_PID=$!
+          npm run start --workspace=@ft360/web &
+          WEB_PID=$!
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4000/api/v1/health/live >/dev/null && curl -fsS http://127.0.0.1:3000 >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          npm run test:e2e
+          kill $API_PID $WEB_PID || true
+
