@@ -38,7 +38,6 @@ import { PlatformDirectoryRepository } from '../../src/modules/foundation-db/pla
 import { RbacRepository } from '../../src/modules/foundation-db/rbac.repository';
 import { TenantMembershipRepository } from '../../src/modules/foundation-db/tenant-membership.repository';
 
-const SUPER_ADMIN_ACTOR_ID = '0195f3a2-7c40-7b12-9a10-4e8d21b9f000';
 const CORR_ID = '0195f3a2-7c40-7b12-9a10-4e8d21b9f999';
 
 @Controller('_test-phase2-guard')
@@ -81,11 +80,13 @@ describe('Phase 2 Database Foundation, Clean Migrations, Composite FKs & Mandato
   let rbacRepo: RbacRepository;
 
   // Seeded fixtures across Tenant A, Tenant B, and Global Platform
+  let userSuperAdmin: UserEntity;
   let userAlphaAdmin: UserEntity;
   let userAlphaMember: UserEntity;
   let userBetaAdmin: UserEntity;
   let userSharedMultiOrg: UserEntity;
   let userPendingGlobal: UserEntity;
+  let userActiveWithSuspendedAndInvitedMemberships: UserEntity;
 
   let tenantAlpha: TenantEntity;
   let tenantBeta: TenantEntity;
@@ -177,11 +178,24 @@ describe('Phase 2 Database Foundation, Clean Migrations, Composite FKs & Mandato
     membershipRepo = app.get(TenantMembershipRepository);
     rbacRepo = app.get(RbacRepository);
 
-    // Seed global users & tenants via Platform Super Admin transaction
-    await txManager.withPlatformAdminTransaction(SUPER_ADMIN_ACTOR_ID, async (tx) => {
+    // Bootstrap Platform Super Admin account first via system bootstrap transaction
+    await txManager.withSystemBootstrapTransaction(async (tx) => {
+      userSuperAdmin = await platformRepo.createUser(tx, {
+        email: 'platform.root@phase2.test',
+        fullName: 'Platform Super Admin',
+        passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$mockhashsuperadmin',
+        status: 'ACTIVE',
+        isPlatformSuperAdmin: true,
+        emailVerified: true,
+      });
+    });
+
+    // Seed global users & tenants via verified Platform Super Admin transaction
+    await txManager.withPlatformAdminTransaction(userSuperAdmin.id, async (tx) => {
       userAlphaAdmin = await platformRepo.createUser(tx, {
         email: 'alpha.admin@phase2.test',
         fullName: 'Alpha Admin',
+        passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$mockhashalpha',
         phoneE164: '+14155551001',
         status: 'ACTIVE',
         emailVerified: true,
@@ -195,6 +209,7 @@ describe('Phase 2 Database Foundation, Clean Migrations, Composite FKs & Mandato
       userBetaAdmin = await platformRepo.createUser(tx, {
         email: 'beta.admin@phase2.test',
         fullName: 'Beta Admin',
+        passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$mockhashbeta',
         phoneE164: '+14155552002',
         status: 'ACTIVE',
         emailVerified: true,
@@ -202,6 +217,7 @@ describe('Phase 2 Database Foundation, Clean Migrations, Composite FKs & Mandato
       userSharedMultiOrg = await platformRepo.createUser(tx, {
         email: 'shared.consultant@phase2.test',
         fullName: 'Shared Multi-Org Consultant',
+        passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$mockhashshared',
         status: 'ACTIVE',
         emailVerified: true,
       });
@@ -209,6 +225,12 @@ describe('Phase 2 Database Foundation, Clean Migrations, Composite FKs & Mandato
         email: 'pending.user@phase2.test',
         fullName: 'Pending User',
         status: 'PENDING',
+      });
+      userActiveWithSuspendedAndInvitedMemberships = await platformRepo.createUser(tx, {
+        email: 'suspended.member@phase2.test',
+        fullName: 'Active User With Non-Active Memberships',
+        status: 'ACTIVE',
+        emailVerified: false,
       });
 
       tenantAlpha = await platformRepo.createTenant(tx, {
@@ -288,6 +310,20 @@ describe('Phase 2 Database Foundation, Clean Migrations, Composite FKs & Mandato
           userId: userPendingGlobal.id,
           status: 'SUSPENDED',
         });
+        await membershipRepo.createMembership(tx, {
+          tenantId: tenantAlpha.id,
+          userId: userActiveWithSuspendedAndInvitedMemberships.id,
+          status: 'SUSPENDED',
+        });
+
+        // Verify 2-character role slug ('hr') is accepted by chk_roles_slug_format
+        await rbacRepo.createRole(tx, {
+          tenantId: tenantAlpha.id,
+          slug: 'hr',
+          name: 'HR Operations',
+          isSystemRole: false,
+          dataAccessScope: 'TEAM',
+        });
 
         roleAlphaAdmin = await rbacRepo.createRole(tx, {
           tenantId: tenantAlpha.id,
@@ -332,6 +368,12 @@ describe('Phase 2 Database Foundation, Clean Migrations, Composite FKs & Mandato
           membershipType: 'CLIENT_PORTAL',
           status: 'ACTIVE',
         });
+        // Unaccepted INVITED membership in Tenant Beta: must NOT expose global user profile to Beta
+        await membershipRepo.createMembership(tx, {
+          tenantId: tenantBeta.id,
+          userId: userActiveWithSuspendedAndInvitedMemberships.id,
+          status: 'INVITED',
+        });
 
         roleBetaAdmin = await rbacRepo.createRole(tx, {
           tenantId: tenantBeta.id,
@@ -361,7 +403,7 @@ describe('Phase 2 Database Foundation, Clean Migrations, Composite FKs & Mandato
     const cleanupPool = new Pool({ connectionString: config.database.migratorUrl, max: 1 });
     try {
       await cleanupPool.query(
-        `DELETE FROM public.tenants WHERE slug IN ('tenant-alpha-p2', 'tenant-beta-p2', 'tenant-suspended-p2')`,
+        `DELETE FROM public.tenants WHERE slug IN ('tenant-alpha-p2', 'tenant-beta-p2', 'tenant-suspended-p2', 'uk')`,
       );
       await cleanupPool.query(`DELETE FROM public.users WHERE email LIKE '%@phase2.test'`);
     } finally {
@@ -440,9 +482,9 @@ describe('Phase 2 Database Foundation, Clean Migrations, Composite FKs & Mandato
       ]),
     );
 
-    // Verify unique constraints (case-insensitive email & slug) + updated_at trigger in isolated transactions
+    // Verify unique constraints (case-insensitive email & slug), 2-char tenant slug ('uk'), + updated_at trigger
     await expect(
-      txManager.withPlatformAdminTransaction(SUPER_ADMIN_ACTOR_ID, (tx) =>
+      txManager.withPlatformAdminTransaction(userSuperAdmin.id, (tx) =>
         platformRepo.createUser(tx, {
           email: 'ALPHA.ADMIN@PHASE2.TEST',
           fullName: 'Duplicate Case-Insensitive Email',
@@ -451,7 +493,7 @@ describe('Phase 2 Database Foundation, Clean Migrations, Composite FKs & Mandato
     ).rejects.toMatchObject({ code: '23505' });
 
     await expect(
-      txManager.withPlatformAdminTransaction(SUPER_ADMIN_ACTOR_ID, (tx) =>
+      txManager.withPlatformAdminTransaction(userSuperAdmin.id, (tx) =>
         platformRepo.createTenant(tx, {
           slug: 'TENANT-ALPHA-P2',
           legalName: 'Duplicate Slug',
@@ -460,7 +502,20 @@ describe('Phase 2 Database Foundation, Clean Migrations, Composite FKs & Mandato
       ),
     ).rejects.toMatchObject({ code: '23505' });
 
-    await txManager.withPlatformAdminTransaction(SUPER_ADMIN_ACTOR_ID, async (tx) => {
+    // Non-super-admin UUID cannot invoke withPlatformAdminTransaction
+    await expect(
+      txManager.withPlatformAdminTransaction(userAlphaAdmin.id, async () => 'never'),
+    ).rejects.toThrow(UnauthorizedTenantMembershipError);
+
+    await txManager.withPlatformAdminTransaction(userSuperAdmin.id, async (tx) => {
+      const twoCharTenant = await platformRepo.createTenant(tx, {
+        slug: 'uk',
+        legalName: 'UK Regional Subsidiary Ltd',
+        displayName: 'UK Ops',
+        status: 'TRIAL',
+      });
+      expect(twoCharTenant.slug).toBe('uk');
+
       const beforeUpdate = userAlphaAdmin.updatedAt;
       await new Promise((r) => setTimeout(r, 15));
       const updatedTenant = await platformRepo.updateTenantStatus(tx, tenantBeta.id, 'TRIAL');
@@ -470,6 +525,15 @@ describe('Phase 2 Database Foundation, Clean Migrations, Composite FKs & Mandato
       );
       await platformRepo.updateTenantStatus(tx, tenantBeta.id, 'ACTIVE');
     });
+
+    // Even Platform Super Admin cannot DELETE global root rows (DELETE omitted from ft360_app grants -> 42501)
+    for (const protectedRootTable of ['users', 'tenants', 'permissions']) {
+      await expect(
+        txManager.withPlatformAdminTransaction(userSuperAdmin.id, (tx) =>
+          tx.query(`DELETE FROM public.${protectedRootTable}`),
+        ),
+      ).rejects.toMatchObject({ code: '42501' });
+    }
   });
 
   it('prevents Tenant A from reading, updating, deleting, or inserting Tenant B records AND protects global platform records', async () => {
@@ -663,6 +727,43 @@ describe('Phase 2 Database Foundation, Clean Migrations, Composite FKs & Mandato
 
     await expect(
       txManager.withVerifiedMemberTransaction(alphaCtx, (tx) =>
+        tx.query(`UPDATE public.users SET email_verified = FALSE WHERE id = $1`, [
+          userAlphaAdmin.id,
+        ]),
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
+
+    // Column-level SELECT omits password_hash: even valid tenant tx cannot read password_hash (42501)
+    await expect(
+      txManager.withVerifiedMemberTransaction(alphaCtx, (tx) =>
+        tx.query(`SELECT password_hash FROM public.users WHERE id = $1`, [userAlphaAdmin.id]),
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
+
+    // Protected system roles (is_system_role = TRUE) cannot be deleted or slug-tampered by tenant tx (42501)
+    await expect(
+      txManager.withVerifiedMemberTransaction(alphaCtx, (tx) =>
+        tx.query(`DELETE FROM public.roles WHERE id = $1`, [roleAlphaAdmin.id]),
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
+
+    // Unaccepted INVITED user profile in Tenant Beta is NOT visible to Tenant Beta queries
+    await txManager.withVerifiedMemberTransaction(
+      {
+        tenantId: tenantBeta.id,
+        actorUserId: userBetaAdmin.id,
+        membershipId: memberBetaAdmin.id,
+        correlationId: CORR_ID,
+      },
+      async (tx) => {
+        expect(
+          await platformRepo.findUserById(tx, userActiveWithSuspendedAndInvitedMemberships.id),
+        ).toBeNull();
+      },
+    );
+
+    await expect(
+      txManager.withVerifiedMemberTransaction(alphaCtx, (tx) =>
         tx.query(`UPDATE public.tenants SET status = 'CANCELLED' WHERE id = $1`, [tenantAlpha.id]),
       ),
     ).rejects.toMatchObject({ code: '42501' });
@@ -692,7 +793,7 @@ describe('Phase 2 Database Foundation, Clean Migrations, Composite FKs & Mandato
 
     // 1. Missing context bypassing TenantTransactionManager -> 0 rows on SELECT across ALL 7 tables
     for (const table of phase2Tables) {
-      const res = await dbPool.queryUnscoped(`SELECT * FROM public.${table}`);
+      const res = await dbPool.queryUnscoped(`SELECT id FROM public.${table}`);
       expect(res.rows).toHaveLength(0);
     }
 
@@ -763,7 +864,7 @@ describe('Phase 2 Database Foundation, Clean Migrations, Composite FKs & Mandato
       .expect(403);
     expect(wrongTenantHttp.body.error.code).toBe('TENANT_MEMBERSHIP_DENIED');
 
-    // 2. Suspended membership / pending user attempting access to Tenant Alpha
+    // 2. Pending user attempting access -> USER_ACCOUNT_INACTIVE; ACTIVE user with SUSPENDED/INVITED membership -> TENANT_MEMBERSHIP_INACTIVE
     await expect(
       txManager.withVerifiedMemberTransaction(
         { tenantId: tenantAlpha.id, actorUserId: userPendingGlobal.id, correlationId: CORR_ID },
@@ -777,6 +878,25 @@ describe('Phase 2 Database Foundation, Clean Migrations, Composite FKs & Mandato
       .set('x-test-auth-active-tenant', tenantAlpha.id)
       .expect(403);
     expect(inactiveUserHttp.body.error.code).toBe('USER_ACCOUNT_INACTIVE');
+
+    // ACTIVE user with SUSPENDED membership in Alpha and INVITED membership in Beta
+    expect(
+      await membershipRepo.listUserActiveTenants(userActiveWithSuspendedAndInvitedMemberships.id),
+    ).toEqual([]);
+
+    const suspendedMembershipHttp = await request(app.getHttpServer())
+      .get('/api/v1/_test-phase2-guard/context')
+      .set('x-test-auth-user', userActiveWithSuspendedAndInvitedMemberships.id)
+      .set('x-test-auth-active-tenant', tenantAlpha.id)
+      .expect(403);
+    expect(suspendedMembershipHttp.body.error.code).toBe('TENANT_MEMBERSHIP_INACTIVE');
+
+    const invitedMembershipHttp = await request(app.getHttpServer())
+      .get('/api/v1/_test-phase2-guard/context')
+      .set('x-test-auth-user', userActiveWithSuspendedAndInvitedMemberships.id)
+      .set('x-test-auth-active-tenant', tenantBeta.id)
+      .expect(403);
+    expect(invitedMembershipHttp.body.error.code).toBe('TENANT_MEMBERSHIP_INACTIVE');
 
     // 3. Active user attempting access to a SUSPENDED tenant (even with ACTIVE membership row)
     await expect(

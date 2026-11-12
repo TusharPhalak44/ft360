@@ -24,7 +24,9 @@ CREATE TABLE public.users (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT uq_users_email UNIQUE (email),
-  CONSTRAINT chk_users_email_format CHECK (position('@' in email) > 1),
+  CONSTRAINT chk_users_email_format CHECK (
+    email::text ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'
+  ),
   CONSTRAINT chk_users_full_name_nonempty CHECK (btrim(full_name) <> ''),
   CONSTRAINT chk_users_phone_e164 CHECK (
     phone_e164 IS NULL OR phone_e164 ~ '^\+[1-9][0-9]{6,14}$'
@@ -47,10 +49,12 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  IF current_user = 'ft360_app' AND NOT public.app_is_super_admin() THEN
+  IF current_user <> 'ft360_migrator' AND NOT public.app_is_super_admin() THEN
     IF NEW.is_platform_super_admin IS DISTINCT FROM OLD.is_platform_super_admin
        OR NEW.status IS DISTINCT FROM OLD.status
-       OR NEW.email IS DISTINCT FROM OLD.email THEN
+       OR NEW.email IS DISTINCT FROM OLD.email
+       OR NEW.email_verified IS DISTINCT FROM OLD.email_verified
+       OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
       RAISE EXCEPTION 'Insufficient privileges to modify protected global user identity fields'
         USING ERRCODE = '42501';
     END IF;
@@ -81,7 +85,7 @@ CREATE TABLE public.tenants (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT uq_tenants_slug UNIQUE (slug),
   CONSTRAINT chk_tenants_slug_format CHECK (
-    slug ~ '^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$'
+    slug::text ~ '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$'
   ),
   CONSTRAINT chk_tenants_legal_name_nonempty CHECK (btrim(legal_name) <> ''),
   CONSTRAINT chk_tenants_display_name_nonempty CHECK (btrim(display_name) <> ''),
@@ -104,11 +108,12 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  IF current_user = 'ft360_app' AND NOT public.app_is_super_admin() THEN
+  IF current_user <> 'ft360_migrator' AND NOT public.app_is_super_admin() THEN
     IF NEW.status IS DISTINCT FROM OLD.status
        OR NEW.slug IS DISTINCT FROM OLD.slug
        OR NEW.activated_at IS DISTINCT FROM OLD.activated_at
-       OR NEW.suspended_at IS DISTINCT FROM OLD.suspended_at THEN
+       OR NEW.suspended_at IS DISTINCT FROM OLD.suspended_at
+       OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
       RAISE EXCEPTION 'Insufficient privileges to modify platform-controlled tenant lifecycle fields'
         USING ERRCODE = '42501';
     END IF;
@@ -165,10 +170,34 @@ CREATE INDEX idx_tenant_memberships_tenant_status
 CREATE INDEX idx_tenant_memberships_user_status
   ON public.tenant_memberships (user_id, status);
 
+CREATE INDEX idx_tenant_memberships_invited_by
+  ON public.tenant_memberships (invited_by_user_id)
+  WHERE invited_by_user_id IS NOT NULL;
+
 CREATE TRIGGER trg_tenant_memberships_updated_at
   BEFORE UPDATE ON public.tenant_memberships
   FOR EACH ROW
   EXECUTE FUNCTION public.trigger_set_updated_at();
+
+CREATE OR REPLACE FUNCTION public.trigger_protect_membership_immutability()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.tenant_id IS DISTINCT FROM OLD.tenant_id
+     OR NEW.user_id IS DISTINCT FROM OLD.user_id
+     OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+    RAISE EXCEPTION 'Membership tenant_id, user_id, and created_at are immutable'
+      USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_tenant_memberships_immutability
+  BEFORE UPDATE ON public.tenant_memberships
+  FOR EACH ROW
+  EXECUTE FUNCTION public.trigger_protect_membership_immutability();
 
 -- -----------------------------------------------------------------------------
 -- 4. ROW-LEVEL SECURITY POLICIES (FAIL-CLOSED + FORCE RLS)
@@ -245,6 +274,7 @@ CREATE POLICY users_select ON public.users
         FROM public.tenant_memberships tm
         WHERE tm.user_id = users.id
           AND tm.tenant_id = public.app_current_tenant_id()
+          AND tm.status = 'ACTIVE'
       )
     )
   );
@@ -266,7 +296,45 @@ CREATE POLICY users_update_self_or_platform ON public.users
     OR id = public.app_current_user_id()
   );
 
-GRANT SELECT, INSERT, UPDATE ON public.users TO ft360_app;
+-- Column-level SELECT omits password_hash so no tenant or directory query can ever read password hashes
+GRANT SELECT (
+  id,
+  email,
+  full_name,
+  phone_e164,
+  status,
+  is_platform_super_admin,
+  email_verified,
+  last_login_at,
+  created_at,
+  updated_at
+) ON public.users TO ft360_app;
+
+GRANT INSERT (
+  id,
+  email,
+  password_hash,
+  full_name,
+  phone_e164,
+  status,
+  is_platform_super_admin,
+  email_verified,
+  last_login_at,
+  created_at,
+  updated_at
+) ON public.users TO ft360_app;
+
+GRANT UPDATE (
+  email,
+  password_hash,
+  full_name,
+  phone_e164,
+  status,
+  is_platform_super_admin,
+  email_verified,
+  last_login_at,
+  updated_at
+) ON public.users TO ft360_app;
 
 -- 4C. tenants (Root Organization Isolation + Platform Lifecycle Control)
 ALTER TABLE public.tenants ENABLE ROW LEVEL SECURITY;
@@ -324,7 +392,7 @@ RETURNS TABLE (
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = pg_catalog, public, pg_temp
 AS $$
   SELECT
     tm.id AS membership_id,
@@ -341,6 +409,13 @@ AS $$
     AND tm.tenant_id = p_tenant_id
     AND p_user_id IS NOT NULL
     AND p_tenant_id IS NOT NULL
+    AND (
+      public.app_current_tenant_id() IS NULL
+      OR (
+        public.app_current_tenant_id() = p_tenant_id
+        AND public.app_current_user_id() = p_user_id
+      )
+    )
   LIMIT 1;
 $$;
 
@@ -362,7 +437,7 @@ RETURNS TABLE (
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = pg_catalog, public, pg_temp
 AS $$
   SELECT
     tm.id AS membership_id,
@@ -376,9 +451,14 @@ AS $$
   INNER JOIN public.tenants t ON t.id = tm.tenant_id
   INNER JOIN public.users u ON u.id = tm.user_id
   WHERE tm.user_id = p_user_id
+    AND p_user_id IS NOT NULL
     AND u.status = 'ACTIVE'
-    AND tm.status IN ('ACTIVE', 'INVITED')
+    AND tm.status = 'ACTIVE'
     AND t.status IN ('ACTIVE', 'TRIAL')
+    AND (
+      public.app_current_tenant_id() IS NULL
+      OR public.app_current_user_id() = p_user_id
+    )
   ORDER BY t.display_name ASC;
 $$;
 

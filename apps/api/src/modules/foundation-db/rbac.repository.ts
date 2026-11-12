@@ -179,6 +179,8 @@ export class RbacRepository {
       `SELECT DISTINCT
          p.id, p.code, p.scope_plane, p.module_code, p.description, p.created_at, p.updated_at
        FROM public.user_role_assignments ura
+       INNER JOIN public.tenant_memberships tm
+         ON tm.tenant_id = ura.tenant_id AND tm.id = ura.membership_id AND tm.status = 'ACTIVE'
        INNER JOIN public.roles r
          ON r.tenant_id = ura.tenant_id AND r.id = ura.role_id
        INNER JOIN public.role_permissions rp

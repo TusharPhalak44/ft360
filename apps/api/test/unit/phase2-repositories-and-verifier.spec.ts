@@ -189,6 +189,82 @@ describe('Phase 2 Unit Tests: Verifier, Verified Transactions & Parameterized Re
 
       expect(connectClient).not.toHaveBeenCalled();
     });
+
+    it('preserves original error and evicts tainted client via release(true) if ROLLBACK or RESET fails on broken socket', async () => {
+      const release = jest.fn();
+      const client = {
+        query: jest.fn(async (sql: string) => {
+          if (sql === 'ROLLBACK') {
+            throw new Error('socket hang up during rollback');
+          }
+          return emptyResult([{ ok: true }]);
+        }),
+        release,
+      } as unknown as PoolClient;
+
+      const txManager = new TenantTransactionManager({
+        connectClient: jest.fn().mockResolvedValue(client),
+      } as unknown as DatabasePoolService);
+
+      await expect(
+        txManager.withTenantTransaction(
+          { tenantId: TENANT_ID, actorUserId: USER_ID, correlationId: CORR_ID },
+          async () => {
+            throw new Error('ORIGINAL_DOMAIN_FAILURE');
+          },
+        ),
+      ).rejects.toThrow('ORIGINAL_DOMAIN_FAILURE');
+
+      expect(release).toHaveBeenCalledTimes(1);
+      expect(release).toHaveBeenCalledWith(true);
+    });
+
+    it('verifies active Platform Super Admin in DB and blocks GUC tampering commands inside callbacks', async () => {
+      const release = jest.fn();
+      const client = {
+        query: jest.fn(async (sql: string) => {
+          if (sql.includes('FROM public.users')) {
+            return emptyResult([{ status: 'ACTIVE', is_platform_super_admin: false }]);
+          }
+          return emptyResult([{ ok: true }]);
+        }),
+        release,
+      } as unknown as PoolClient;
+
+      const txManager = new TenantTransactionManager({
+        connectClient: jest.fn().mockResolvedValue(client),
+      } as unknown as DatabasePoolService);
+
+      await expect(
+        txManager.withPlatformAdminTransaction(USER_ID, async () => 'never'),
+      ).rejects.toThrow(UnauthorizedTenantMembershipError);
+      expect(release).toHaveBeenCalledWith(false);
+
+      // Also verify expanded PROHIBITED_TX_SQL_PATTERN (SET app.*, set_config, RESET ALL, DISCARD)
+      for (const badSql of [
+        "SET app.is_super_admin = 'true'",
+        "SET LOCAL app.current_tenant_id = 'abc'",
+        "SELECT set_config('app.is_super_admin', 'true', true)",
+        'RESET ALL',
+        'DISCARD ALL',
+      ]) {
+        const { dbPool } = buildMockPool([
+          {
+            membership_id: MEMBERSHIP_ID,
+            membership_status: 'ACTIVE',
+            tenant_status: 'ACTIVE',
+            user_status: 'ACTIVE',
+          },
+        ]);
+        const mgr = new TenantTransactionManager(dbPool);
+        await expect(
+          mgr.withTenantTransaction(
+            { tenantId: TENANT_ID, actorUserId: USER_ID, correlationId: CORR_ID },
+            async (tx) => tx.query(badSql),
+          ),
+        ).rejects.toThrow(/Prohibited SQL control statement/);
+      }
+    });
   });
 
   describe('Parameterized Native-SQL Repositories', () => {

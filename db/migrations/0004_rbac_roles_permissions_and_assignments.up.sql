@@ -103,7 +103,7 @@ CREATE TABLE public.roles (
   CONSTRAINT fk_roles_tenant
     FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE,
   CONSTRAINT chk_roles_slug_format CHECK (
-    slug ~ '^[a-z0-9]([a-z0-9_-]{1,61}[a-z0-9])?$'
+    slug::text ~ '^[a-z0-9]([a-z0-9_-]{0,61}[a-z0-9])?$'
   ),
   CONSTRAINT chk_roles_name_nonempty CHECK (btrim(name) <> ''),
   CONSTRAINT chk_roles_data_access_scope CHECK (
@@ -118,6 +118,44 @@ CREATE TRIGGER trg_roles_updated_at
   BEFORE UPDATE ON public.roles
   FOR EACH ROW
   EXECUTE FUNCTION public.trigger_set_updated_at();
+
+CREATE OR REPLACE FUNCTION public.trigger_protect_system_roles()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    IF OLD.is_system_role = TRUE
+       AND current_user <> 'ft360_migrator'
+       AND NOT public.app_is_super_admin() THEN
+      RAISE EXCEPTION 'Protected system roles cannot be deleted by tenant transactions'
+        USING ERRCODE = '42501';
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  IF NEW.tenant_id IS DISTINCT FROM OLD.tenant_id
+     OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+    RAISE EXCEPTION 'Role tenant_id and created_at are immutable'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF current_user <> 'ft360_migrator' AND NOT public.app_is_super_admin() THEN
+    IF NEW.is_system_role IS DISTINCT FROM OLD.is_system_role
+       OR (OLD.is_system_role = TRUE AND NEW.slug IS DISTINCT FROM OLD.slug) THEN
+      RAISE EXCEPTION 'Protected system role flags and slugs cannot be mutated by tenant transactions'
+        USING ERRCODE = '42501';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_roles_protect_system_roles
+  BEFORE UPDATE OR DELETE ON public.roles
+  FOR EACH ROW
+  EXECUTE FUNCTION public.trigger_protect_system_roles();
 
 ALTER TABLE public.roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.roles FORCE ROW LEVEL SECURITY;
@@ -172,9 +210,6 @@ CREATE TABLE public.role_permissions (
     FOREIGN KEY (permission_id) REFERENCES public.permissions(id) ON DELETE RESTRICT
 );
 
-CREATE INDEX idx_role_permissions_tenant_role
-  ON public.role_permissions (tenant_id, role_id);
-
 CREATE INDEX idx_role_permissions_permission
   ON public.role_permissions (permission_id);
 
@@ -188,7 +223,7 @@ CREATE OR REPLACE FUNCTION public.trigger_enforce_tenant_permission_scope()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = pg_catalog, public, pg_temp
 AS $$
 DECLARE
   v_scope VARCHAR(24);
@@ -213,6 +248,35 @@ CREATE TRIGGER trg_role_permissions_enforce_scope
   BEFORE INSERT OR UPDATE ON public.role_permissions
   FOR EACH ROW
   EXECUTE FUNCTION public.trigger_enforce_tenant_permission_scope();
+
+-- Reverse guard: prevent changing an assigned permission's scope_plane to PLATFORM
+CREATE OR REPLACE FUNCTION public.trigger_prevent_permission_plane_escalation()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+BEGIN
+  IF NEW.scope_plane = 'PLATFORM' AND OLD.scope_plane <> 'PLATFORM' THEN
+    IF EXISTS (
+      SELECT 1
+      FROM public.role_permissions rp
+      WHERE rp.permission_id = NEW.id
+    ) THEN
+      RAISE EXCEPTION 'Cannot reclassify a permission assigned to tenant roles into PLATFORM plane'
+        USING ERRCODE = '42501';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.trigger_prevent_permission_plane_escalation() FROM PUBLIC;
+
+CREATE TRIGGER trg_permissions_prevent_plane_escalation
+  BEFORE UPDATE ON public.permissions
+  FOR EACH ROW
+  EXECUTE FUNCTION public.trigger_prevent_permission_plane_escalation();
 
 ALTER TABLE public.role_permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.role_permissions FORCE ROW LEVEL SECURITY;
@@ -278,11 +342,12 @@ CREATE TABLE public.user_role_assignments (
     ON DELETE SET NULL (assigned_by_membership_id)
 );
 
-CREATE INDEX idx_ura_tenant_membership
-  ON public.user_role_assignments (tenant_id, membership_id);
-
 CREATE INDEX idx_ura_tenant_role
   ON public.user_role_assignments (tenant_id, role_id);
+
+CREATE INDEX idx_ura_assigned_by_membership
+  ON public.user_role_assignments (tenant_id, assigned_by_membership_id)
+  WHERE assigned_by_membership_id IS NOT NULL;
 
 CREATE TRIGGER trg_user_role_assignments_updated_at
   BEFORE UPDATE ON public.user_role_assignments

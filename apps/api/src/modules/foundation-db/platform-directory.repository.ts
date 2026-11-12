@@ -154,7 +154,6 @@ export class PlatformDirectoryRepository {
 
   async createTenant(tx: QueryExecutor, input: CreateTenantInput): Promise<TenantEntity> {
     const status = input.status ?? 'PROVISIONING';
-    const activatedAt = status === 'ACTIVE' ? new Date().toISOString() : null;
     const res = await tx.query<TenantRow>(
       `INSERT INTO public.tenants (
          slug,
@@ -163,9 +162,19 @@ export class PlatformDirectoryRepository {
          status,
          default_timezone,
          default_currency,
-         activated_at
+         activated_at,
+         suspended_at
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       VALUES (
+         $1,
+         $2,
+         $3,
+         $4::varchar(24),
+         $5,
+         $6,
+         CASE WHEN $4::varchar(24) = 'ACTIVE' THEN NOW() ELSE NULL END,
+         CASE WHEN $4::varchar(24) = 'SUSPENDED' THEN NOW() ELSE NULL END
+       )
        RETURNING
          id, slug::text AS slug, legal_name, display_name, status,
          default_timezone, default_currency, activated_at, suspended_at, created_at, updated_at`,
@@ -176,7 +185,6 @@ export class PlatformDirectoryRepository {
         status,
         input.defaultTimezone ?? 'UTC',
         (input.defaultCurrency ?? 'USD').toUpperCase(),
-        activatedAt,
       ],
     );
     return this.mapTenant(res.rows[0]);

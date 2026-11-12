@@ -9,7 +9,8 @@ import {
   type QueryExecutor,
 } from './database.types';
 
-const PROHIBITED_TX_SQL_PATTERN = /\b(SET\s+SESSION|SET\s+ROLE|RESET\s+ROLE|COMMIT|ROLLBACK|BEGIN)\b/i;
+const PROHIBITED_TX_SQL_PATTERN =
+  /\b(SET\s+(?:SESSION|LOCAL)\b|SET\s+app\.|SET\s+ROLE\b|RESET\s+(?:ALL|ROLE)\b|RESET\s+app\.|DISCARD\b|set_config\s*\(|BEGIN(?:\s+TRANSACTION|\s+WORK)?\s*(?:;|$)|START\s+TRANSACTION\b|COMMIT\b|ROLLBACK\b|ABORT\b)|(?:^|;)\s*END(?:\s+TRANSACTION|\s+WORK)?\s*(?:;|$)/i;
 
 @Injectable()
 export class TenantTransactionManager {
@@ -48,6 +49,7 @@ export class TenantTransactionManager {
 
     const client = await this.dbPool.connectClient();
     let inTransaction = false;
+    let destroyClient = false;
 
     try {
       await this.sanitizeSessionVariables(client);
@@ -73,16 +75,19 @@ export class TenantTransactionManager {
         try {
           await client.query('ROLLBACK');
         } catch {
-          // Ignore rollback failure on broken socket; client reset follows
+          destroyClient = true;
         }
       }
       throw error;
     } finally {
-      try {
-        await this.sanitizeSessionVariables(client);
-      } finally {
-        client.release();
+      if (!destroyClient) {
+        try {
+          await this.sanitizeSessionVariables(client);
+        } catch {
+          destroyClient = true;
+        }
       }
+      client.release(destroyClient);
     }
   }
 
@@ -147,7 +152,8 @@ export class TenantTransactionManager {
 
   /**
    * Dedicated Platform Super Admin transaction wrapper.
-   * Never sets a tenant context; sets transaction-local `app.is_super_admin = 'true'`.
+   * Never sets a tenant context; sets transaction-local `app.is_super_admin = 'true'`
+   * AND verifies inside PostgreSQL that `actorSuperAdminUserId` is an ACTIVE Platform Super Admin.
    */
   async withPlatformAdminTransaction<T>(
     actorSuperAdminUserId: string,
@@ -159,8 +165,46 @@ export class TenantTransactionManager {
       );
     }
 
+    const normalizedAdminId = actorSuperAdminUserId.trim().toLowerCase();
+    return this.runSuperAdminScopedTransaction(normalizedAdminId, async (tx) => {
+      const adminRes = await tx.query<{
+        status: string;
+        is_platform_super_admin: boolean;
+      }>(
+        `SELECT status, is_platform_super_admin
+         FROM public.users
+         WHERE id = $1::uuid`,
+        [normalizedAdminId],
+      );
+
+      const adminRow = adminRes.rows[0];
+      if (!adminRow || !adminRow.is_platform_super_admin || adminRow.status !== 'ACTIVE') {
+        throw new UnauthorizedTenantMembershipError(
+          'Access denied: actor is not an ACTIVE Platform Super Admin.',
+        );
+      }
+
+      return work(tx);
+    });
+  }
+
+  /**
+   * System bootstrap transaction wrapper strictly for initial Platform Super Admin seeding
+   * when no Super Admin user exists yet. Never sets a tenant context.
+   */
+  async withSystemBootstrapTransaction<T>(
+    work: (tx: QueryExecutor) => Promise<T>,
+  ): Promise<T> {
+    return this.runSuperAdminScopedTransaction('', work);
+  }
+
+  private async runSuperAdminScopedTransaction<T>(
+    normalizedActorId: string,
+    work: (tx: QueryExecutor) => Promise<T>,
+  ): Promise<T> {
     const client = await this.dbPool.connectClient();
     let inTransaction = false;
+    let destroyClient = false;
 
     try {
       await this.sanitizeSessionVariables(client);
@@ -172,7 +216,7 @@ export class TenantTransactionManager {
            set_config('app.current_tenant_id', '', true),
            set_config('app.current_user_id', $1, true),
            set_config('app.is_super_admin', 'true', true)`,
-        [actorSuperAdminUserId.trim().toLowerCase()],
+        [normalizedActorId],
       );
 
       const safeExecutor = this.createSafeExecutor(client);
@@ -186,16 +230,19 @@ export class TenantTransactionManager {
         try {
           await client.query('ROLLBACK');
         } catch {
-          // Ignore rollback error
+          destroyClient = true;
         }
       }
       throw error;
     } finally {
-      try {
-        await this.sanitizeSessionVariables(client);
-      } finally {
-        client.release();
+      if (!destroyClient) {
+        try {
+          await this.sanitizeSessionVariables(client);
+        } catch {
+          destroyClient = true;
+        }
       }
+      client.release(destroyClient);
     }
   }
 
