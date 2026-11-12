@@ -1,55 +1,32 @@
 # Phase 1 – Test Execution & Verification Evidence Report
 
-**Execution Date:** 2026-11-12  
-**Environment:** Windows Workstation (`Node v26.13.0`, `npm 11.5.2`, `Git 2.56.0.windows.4`, `Docker CLI 29.9.2`, `Docker Compose v5.6.1`)  
+**Execution Date:** 2026-11-13  
+**Environment:** Windows Workstation (`Node v26.13.0`, `npm 11.5.2`, `PostgreSQL 18.6` isolated cluster on `:5434`, `Redis 8.10.3` persistent AOF instance on `:6379`, `Playwright Chromium v1254`)  
 **Prepared By:** Engineering & QA Team (Mansi, Tushar, Nakshatra)
 
-> **Integrity Statement:** Every result below reflects actual command execution on `2026-11-12`. Tests requiring live Linux containers (`postgres:18-alpine`, `redis:7-alpine`) are explicitly marked **`BLOCKED (NOT EXECUTED)`** due to disabled BIOS/firmware hardware virtualization (`WslVirtualizationDisabledInFirmware`) on the host machine, and Phase 1 remains open until container runtime verification completes.
+> **Integrity Statement:** Every result below was executed live on `2026-11-12` / `2026-11-13`. Because BIOS virtualization (`VT-x`) is disabled on this host, `scripts/infra.mjs` automatically provisioned an isolated user-space PostgreSQL 18.6 cluster (`.local-infra/postgres-data` on `:5434`, leaving the host's Windows PostgreSQL service on `:5433` untouched) and an isolated persistent Redis 8.10.3 server (`.local-infra/redis-data` on `:6379`) while preserving Docker Compose as primary whenever Docker Engine is active.
 
 ---
 
-## 1. Summary of Executed Checks
+## 1. Summary of Executed Verification Gates
 
-| Check / Suite | Command Executed | Exit Code | Result | Evidence Summary |
+| Check / Suite | Command Executed | Exit Code | Actual Result | Verbatim Evidence |
 |---|---|---|---|---|
-| **Zero-ORM & Boundary Scanner** | `npm run check:no-orm` | `0` | **PASSED** | `0` prohibited ORM packages across all `package.json` & `package-lock.json`; `0` frontend DB imports; `0` unauthorized `new Pool()` calls outside `apps/api/src/database/`. |
-| **Docker Compose Spec Validation** | `docker compose config --quiet` | `0` | **PASSED** | Validated `postgres:18-alpine`, `redis:7-alpine` (AOF persistent), `api`, and `web` services and `${POSTGRES_HOST_PORT:-5433}:5432` port mapping. |
-| **Workspace ESLint** | `npm run lint` | `0` | **PASSED** | `0` errors / `0` warnings across `@ft360/api` (`src/**/*.ts`, `test/**/*.ts`) and `@ft360/web` (`src/**/*.{ts,tsx}`). |
-| **Strict TypeScript Typecheck** | `npm run typecheck` | `0` | **PASSED** | `0` compiler errors across `@ft360/shared-types`, `@ft360/api`, and `@ft360/web` (`strict: true`, `noImplicitAny: true`). |
-| **Backend Unit & HTTP Pipeline Suite** | `npm run test:unit` | `0` | **PASSED (18/18)** | `2` suites passed, `18` tests passed (`4.637 s`):<br>• `env-and-security-guards.spec.ts` (13 passed): env role-separation check, `UntrustedTenantInputGuard` header/query/nested-body rejection, `TenantTransactionManager` UUID check + `set_config(..., true)` + `RESET` on commit/rollback + SQL `SET SESSION` block, `RedisService.buildTenantKey` isolation, `TenantJobEnvelope` verification, `SqlMigrationRunner` paired `.up.sql`/`.down.sql` discovery & SHA-256 checksums.<br>• `http-pipeline-and-swagger.spec.ts` (5 passed): Supertest verification of `/api/v1/health/live`, `/api/v1/health`, `/api/v1/public/branding`, `/api/docs-json` (OpenAPI 3), CORS, `X-Correlation-Id`, and HTTP `400 UNTRUSTED_TENANT_INPUT_REJECTED`. |
-| **Monorepo Production Builds** | `npm run build` | `0` | **PASSED** | Compiled `@ft360/shared-types`, `@ft360/api` (`dist/main.js`), and `@ft360/web` (Next.js `15.5.29` optimized build). |
-| **Next.js Frontend Server Boot** | `npm run start --workspace=@ft360/web` + HTTP probe `http://127.0.0.1:3000` | `0` | **PASSED** | Server started cleanly and returned `NEXT_WEB_HTTP_STATUS=200`. |
-| **Docker Engine Container Startup (`postgres`, `redis`)** | `docker desktop start` / `docker compose up -d postgres redis` | `1` | **BLOCKED (HOST BIOS)** | Docker Desktop backend reported `noVirtualizationReason: "WslVirtualizationDisabledInFirmware"` (`HCS_E_HYPERV_NOT_INSTALLED`). Host Windows `postgresql-x64-18` (PID `5688` on port `5433`) was intentionally left untouched per instructions. |
-| **Live SQL Migration Execution (`up` / `rollback`)** | `npm run db:migrate` | — | **NOT EXECUTED (BLOCKED)** | Awaits Docker PostgreSQL 18 container startup after host BIOS virtualization is enabled. |
-| **Real PG18 + Redis Integration & Negative RLS Suite** | `npm run test:integration` (`foundation-stack-and-rls.int-spec.ts`) | — | **NOT EXECUTED (BLOCKED)** | Written and typechecked/linted; awaits live Docker `postgres:18-alpine` + `redis:7-alpine` containers. **Note:** Per Mandatory Security Corrections, tenant isolation is **not** claimed secure until this negative suite executes and passes against live PostgreSQL 18. |
-| **Playwright Full-Stack E2E** | `npm run test:e2e` (`foundation-health.spec.ts`) | — | **NOT EXECUTED (BLOCKED)** | Written and typechecked; awaits live PostgreSQL 18 + Redis backing the running NestJS API. |
-| **GitHub Actions Cloud Run** | `.github/workflows/ci.yml` | — | **PENDING REMOTE URL** | Workflow configured; push paused per instruction until GitHub repository URL is provided. |
+| **Zero-ORM & Boundary Scanner** | `npm run check:no-orm` | `0` | **PASSED** | `0` ORM packages in workspace or `package-lock.json`; `0` frontend DB imports; `0` unauthorized `new Pool()` calls. |
+| **Docker Compose Spec Validation** | `docker compose config --quiet` | `0` | **PASSED** | Compose YAML validated cleanly (`postgres:18-alpine`, `redis:7-alpine`, `api`, `web`). |
+| **Workspace ESLint** | `npm run lint` | `0` | **PASSED** | `0` errors / `0` warnings across `@ft360/api` and `@ft360/web`. |
+| **Strict TypeScript Typecheck** | `npm run typecheck` | `0` | **PASSED** | `0` compiler errors across `@ft360/shared-types`, `@ft360/api`, and `@ft360/web`. |
+| **SQL Migrations (`up` -> `rollback` -> `up`)** | `npm run db:migrate` & `db:migrate:status` | `0` | **PASSED** | Applied `0001_foundation_rls_helpers` (`2026-11-12T19:42:20.971Z`) and `0002_foundation_branding_and_rls_canary` (`2026-11-12T19:42:20.980Z`); rollback + re-apply verified inside integration suite. |
+| **Unit + HTTP Supertest Suite** | `npm run test:unit` | `0` | **PASSED (`18/18`)** | `2` suites passed, `18` tests passed (`5.985 s`). |
+| **Real PG18 + Redis Integration & Negative RLS Suite** | `npm run test:integration` | `0` | **PASSED (`6/6`)** | `foundation-stack-and-rls.int-spec.ts` (`6.025 s`):<br>• Verified `ft360_app` has `rolsuper=false`, `rolbypassrls=false`, non-owner, and `FORCE ROW LEVEL SECURITY` active (`6 ms`)<br>• Verified Tenant Alpha vs Tenant Beta `SELECT`/`UPDATE`/`DELETE`/`INSERT` (`42501`) isolation (`13 ms`)<br>• Verified fail-closed behavior when bypassing `TenantTransactionManager` or passing malformed SQL UUID (`33 ms`)<br>• Verified zero context leakage across `COMMIT`, `ROLLBACK`, and rogue session `SET` on a single-connection (`max: 1`) pool (`160 ms`)<br>• Verified Redis `t:{tenantId}:*` cross-tenant cache isolation (`4 ms`)<br>• Verified `/api/v1/health`, `/api/v1/public/branding`, `/api/docs-json`, and `400 UNTRUSTED_TENANT_INPUT_REJECTED` (`73 ms`) |
+| **Live Readiness Endpoint** | `GET http://localhost:4000/api/v1/health` | `200` | **PASSED** | `status: "healthy"`, `serverVersion: "18.6"`, `currentRole: "ft360_app"`, `bypassRls: false`, `isSuperuser: false`, `appliedMigrations: 2`, `redis.connected: true` (`0.38 ms`). |
+| **Playwright Full-Stack Browser E2E** | `npm run test:e2e` | `0` | **PASSED (`1/1`)** | `[chromium] foundation-health.spec.ts` (`1.6s`) — verified live `API: HEALTHY`, `ft360_app`, `false / false` RLS posture, and `Connected (PONG)` in headless Chrome against `http://localhost:3000`. |
+| **Production Builds** | `npm run build` | `0` | **PASSED** | Compiled `@ft360/shared-types`, `@ft360/api`, and `@ft360/web` (Next.js `15.5.29`). |
+| **GitHub Actions Cloud Execution** | `.github/workflows/ci.yml` | — | **PENDING REMOTE URL** | Workflow configured and all local equivalent steps passed; remote push paused per Section 3 until GitHub repository URL is provided. |
 
 ---
 
-## 2. Diagnostic Evidence for Host Docker Blocker
+## 2. Scope Note on Tenant Isolation Verification
 
-Recorded verbatim from `%LOCALAPPDATA%\Docker\log\host\docker-desktop.exe.log`:
-
-```text
-{"docker":"stopped","dockerAPI":"stopped","hasNoVirtualization":true,"mode":"linux",
- "noVirtualizationReason":"WslVirtualizationDisabledInFirmware",
- "stopReason":"WSL2 is unable to start since virtualization is not enabled on this machine.
- Please ensure the \"Virtual Machine Platform\" optional component is enabled and virtualization
- is turned on in your computer's firmware settings.
- Error code: Wsl/Service/RegisterDistro/CreateVm/HCS/HCS_E_HYPERV_NOT_INSTALLED"}
-```
-
-### Exact Remediation Steps to Unblock Container Verification
-1. Enable **Intel VT-x** or **AMD-V / SVM** in system BIOS/UEFI settings.
-2. In Administrator PowerShell, run:
-   ```powershell
-   wsl.exe --install --no-distribution
-   ```
-3. Reboot Windows, start Docker Desktop, and run:
-   ```powershell
-   npm run infra:up
-   npm run db:migrate
-   npm run test:integration
-   ```
-
+- **Verified in Phase 1:** Foundation `TenantTransactionManager`, `ft360_app` least-privilege role (`NOBYPASSRLS`, non-owner), `FORCE ROW LEVEL SECURITY` on `rls_isolation_canary`, fail-closed unscoped/malformed context queries, single-connection pool reuse after commit/rollback/rogue `SET`, HTTP untrusted tenant parameter rejection, and `t:{tenantId}:*` Redis cache isolation.
+- **Scheduled for Phases 2–6:** Full negative cross-tenant testing across core domain tables (`tenants`, `tenant_memberships`, `roles`, `audit_logs`), background job workers, file storage, exports, and reports before claiming platform-wide tenant isolation complete.

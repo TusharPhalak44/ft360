@@ -43,6 +43,7 @@ Thumbs.db
 !.vscode/extensions.json
 !.vscode/settings.json
 
-# Local Docker volumes (if ever mounted locally)
+# Local Docker & fallback user-space infra volumes (NEVER commit)
 .docker-data/
+.local-infra/
 

@@ -11,6 +11,14 @@ import { spawn, spawnSync } from 'node:child_process';
 const isWindows = process.platform === 'win32';
 const npmCmd = isWindows ? 'npm.cmd' : 'npm';
 
+console.log('[dev] Ensuring PostgreSQL 18 + Redis infrastructure is online...');
+const infraUp = spawnSync(process.execPath, ['scripts/infra.mjs', 'up'], {
+  stdio: 'inherit',
+});
+if (infraUp.status !== 0) {
+  console.warn('[dev] Warning: infrastructure auto-start returned non-zero status; continuing in degraded mode.');
+}
+
 console.log('[dev] Building @ft360/shared-types...');
 const buildShared = spawnSync(npmCmd, ['run', 'build', '--workspace=@ft360/shared-types'], {
   stdio: 'inherit',
@@ -19,6 +27,15 @@ const buildShared = spawnSync(npmCmd, ['run', 'build', '--workspace=@ft360/share
 
 if (buildShared.status !== 0) {
   process.exit(buildShared.status ?? 1);
+}
+
+console.log('[dev] Applying pending SQL migrations...');
+const migrateRes = spawnSync(npmCmd, ['run', 'db:migrate'], {
+  stdio: 'inherit',
+  shell: isWindows,
+});
+if (migrateRes.status !== 0) {
+  console.warn('[dev] Warning: db:migrate did not complete; check database connectivity.');
 }
 
 console.log('[dev] Starting NestJS Backend (@ft360/api) and Next.js Frontend (@ft360/web)...');

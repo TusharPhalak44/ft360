@@ -26,9 +26,9 @@
     "db:migrate": "npm run db:migrate --workspace=@ft360/api",
     "db:migrate:status": "npm run db:migrate:status --workspace=@ft360/api",
     "db:migrate:rollback": "npm run db:migrate:rollback --workspace=@ft360/api",
-    "infra:up": "docker compose up -d postgres redis",
-    "infra:down": "docker compose stop postgres redis",
-    "infra:ps": "docker compose ps"
+    "infra:up": "node scripts/infra.mjs up",
+    "infra:down": "node scripts/infra.mjs down",
+    "infra:ps": "node scripts/infra.mjs ps"
   },
   "devDependencies": {
     "@eslint/js": "^9.22.0",
