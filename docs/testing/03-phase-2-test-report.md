@@ -1,8 +1,8 @@
 # Phase 2 – Database Foundation & Mandatory Negative RLS Test Report
 
 **Execution Date:** 2026-11-13  
-**Branch:** `feature/phase-2-database-foundation` -> PR into `development`  
-**Environment:** Local (`PostgreSQL 18.6` on `127.0.0.1:5434`, `Redis 8.10.3` on `127.0.0.1:6379`, `Node v26.13.0`) + GitHub Actions Cloud CI (`ubuntu-latest`, Docker `postgres:18-alpine` + `redis:7-alpine`)  
+**Branch:** `feature/phase-2-database-foundation` -> [PR #1](https://github.com/TusharPhalak44/ft360/pull/1) into `development`  
+**Environment:** Local (`PostgreSQL 18.6` on `127.0.0.1:5434`, `Redis 8.10.3` on `127.0.0.1:6379`, `Node v26.13.0`) + GitHub Actions Cloud CI (`ubuntu-latest`, Docker `postgres:18-alpine` + `redis:7-alpine`, Run `#43309962474`)  
 **Prepared By:** Mansi (Security & QA), Tushar (Architecture & DB), Nakshatra (Full-Stack Repositories)
 
 > **Integrity Statement:** Every test and SQL migration verification below was executed against live PostgreSQL 18 (`ft360_migrator` for DDL and `ft360_app` with `NOBYPASSRLS` for runtime queries). Zero ORMs exist in the repository.
@@ -21,6 +21,7 @@
 | 6 | **PostgreSQL 18 Integration & Negative RLS Suite** | `npm run test:integration` | **EXECUTED** | **PASSED (`12/12` in `7.084 s`)** | `2/2` suites passed (`foundation-stack-and-rls.int-spec.ts` `6/6` + `phase2-database-foundation-rls.int-spec.ts` `6/6`). |
 | 7 | **Production Builds** | `npm run build` | **EXECUTED** | **PASSED (`Exit 0`)** | Compiled `@ft360/shared-types`, `@ft360/api`, and `@ft360/web` (`Next.js 15.5.29`). |
 | 8 | **Playwright Chromium E2E** | `npm run test:e2e` | **EXECUTED** | **PASSED (`1/1` in `3.7 s`)** | Preserved 100% of Phase 1 live telemetry (`API: HEALTHY`, `Role: ft360_app`, `false / false`, `Applied SQL Migrations: 4`, `0` browser/console/HTTP errors). |
+| 9 | **GitHub Actions Cloud CI (`pull_request`)** | `.github/workflows/ci.yml` (Run `#43309962474` on PR `#1`) | **EXECUTED** | **PASSED (`completed / success`)** | All 14 cloud steps passed on `postgres:18-alpine` + `redis:7-alpine`: Zero-ORM gate, `ft360_migrator` & `ft360_app` provisioning, ESLint, Typecheck, SQL Migrations (`up -> rollback -> up`), Unit (`30/30`), Integration & Negative RLS (`12/12`), Build, and Playwright Chromium E2E (`1/1`). |
 
 ---
 
@@ -60,3 +61,4 @@ Executed live in `apps/api/test/integration/phase2-database-foundation-rls.int-s
 | 8 | **Cross-tenant composite foreign key violations are rejected** | **PASSED** | Even when bypassing RLS via `ft360_migrator`, PostgreSQL rejected cross-tenant references with SQLSTATE **`23503`** on `fk_role_permissions_tenant_role`, `fk_ura_tenant_membership`, `fk_ura_tenant_role`, and `fk_ura_assigned_by_membership`. Also verified `ON DELETE SET NULL (assigned_by_membership_id)` preserved `tenant_id`. |
 | 9 | **Rollback clears transaction-scoped tenant context** | **PASSED** | Inserting `rolled_back_role` inside Tenant Alpha transaction followed by thrown exception rolled back the insert (`0` rows persisted) and unwound `set_config(..., true)`. |
 | 10 | **Reused connections cannot expose previous tenant context** | **PASSED** | On a `max: 1` `pg.Pool` (same `pg_backend_pid()` verified), consecutive Tenant Alpha `COMMIT`, Tenant Alpha `ROLLBACK`, rogue session `SET`, Tenant Beta `COMMIT`, and subsequent unscoped checkout returned `tid = null`, `uid = null`, `super_flag = false`, and **`0` rows** across `tenants`, `tenant_memberships`, and `roles`. |
+
