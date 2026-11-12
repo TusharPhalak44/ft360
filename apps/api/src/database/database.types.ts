@@ -19,3 +19,10 @@ export class InvalidTenantContextError extends Error {
   }
 }
 
+export class UnauthorizedTenantMembershipError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnauthorizedTenantMembershipError';
+  }
+}
+

@@ -1,7 +1,7 @@
 # Permanent Module Development & QA Tracking Register
 
 **Last Updated:** 2026-11-13  
-**Document Version:** 0.1.2  
+**Document Version:** 0.2.0  
 **Maintained By:** Tushar (Product & Architecture), Nakshatra (Full-Stack), Mansi (Security & QA)
 
 > **Governance Rule:** Never mark any test or status column as passed/approved without actual execution evidence linked under *Test Report References*. Every module progresses strictly through the 19-stage Status Lifecycle below.
@@ -17,7 +17,7 @@
 | **Active Integration Branch (`development`)** | Synchronized & fast-forwarded ahead of `main` with post-CI synchronization documentation (`0` diverged commits, `0` force-pushes) |
 | **`main` Branch Protection Policy** | **ACTIVE** (`strict` required check: `Build, Zero-ORM, Migrations, Unit, Integration & E2E`; `1` required PR approval; stale review dismissal; conversation resolution required; force-push & deletion disabled) |
 | **GitHub Actions Cloud CI Runs** | • Run `#43302143641` (`main` @ `de8994b`): **`completed / success`** (`2m 38s`)<br>• Run `#43302143632` (`development` @ `de8994b`): **`completed / success`** (`2m 42s`)<br>• Run `#43302968263` (`development` @ `bf9f978`): **`completed / success`** (`1m 44s`) |
-| **Next Authorized Gate** | **HOLD** — Phase 2 (`Database Foundation`) awaits explicit authorization from Tushar |
+| **Next Authorized Gate** | **PHASE 2 IN CODE REVIEW** — PR `feature/phase-2-database-foundation -> development` open; Phase 3 awaits explicit authorization |
 
 ---
 
@@ -31,11 +31,11 @@
 
 | ID | Module Name | Wave / Phase | Lead Dev | Dev Status | DB | API | UI | Unit | Integ | Sec | QA | UAT | Defects | Updated | Ver |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **M01** | Platform Super Admin | Phase 3–8 | Tushar | `DESIGN` | `DESIGN` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
-| **M02** | Tenant Registration & Mgmt | Phase 4 | Tushar | `DESIGN` | `DESIGN` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
-| **M03** | Authentication & User Mgmt | Phase 3 | Mansi | `DESIGN` | `DESIGN` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
-| **M04** | Organization Management | Phase 4–8 | Nakshatra | `DESIGN` | `DESIGN` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
-| **M05** | Roles & Permissions | Phase 5 | Mansi | `DESIGN` | `DESIGN` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
+| **M01** | Platform Super Admin | Phase 3–8 | Tushar | `IN DEVELOPMENT` | `IN REVIEW (0002–0004)` | `NOT STARTED` | `NOT STARTED` | `PASSED` | `PASSED` | `PASSED` | `IN REVIEW` | `PENDING` | 0 | 2026-11-13 | 0.2.0 |
+| **M02** | Tenant Registration & Mgmt | Phase 2–4 | Tushar | `IN DEVELOPMENT` | `IN REVIEW (0003)` | `NOT STARTED` | `NOT STARTED` | `PASSED` | `PASSED` | `PASSED` | `IN REVIEW` | `PENDING` | 0 | 2026-11-13 | 0.2.0 |
+| **M03** | Authentication & User Mgmt | Phase 2–3 | Mansi | `IN DEVELOPMENT` | `IN REVIEW (0003)` | `NOT STARTED` | `NOT STARTED` | `PASSED` | `PASSED` | `PASSED` | `IN REVIEW` | `PENDING` | 0 | 2026-11-13 | 0.2.0 |
+| **M04** | Organization Management | Phase 2–8 | Nakshatra | `IN DEVELOPMENT` | `IN REVIEW (0003)` | `NOT STARTED` | `NOT STARTED` | `PASSED` | `PASSED` | `PASSED` | `IN REVIEW` | `PENDING` | 0 | 2026-11-13 | 0.2.0 |
+| **M05** | Roles & Permissions | Phase 2–5 | Mansi | `IN DEVELOPMENT` | `IN REVIEW (0004)` | `NOT STARTED` | `NOT STARTED` | `PASSED` | `PASSED` | `PASSED` | `IN REVIEW` | `PENDING` | 0 | 2026-11-13 | 0.2.0 |
 | **M06** | Subscription & Billing | Phase 7 | Tushar | `DESIGN` | `DESIGN` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
 | **M07** | CRM | Wave 1 | Nakshatra | `BACKLOG` | `NOT STARTED` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
 | **M08** | Leads & Contacts | Wave 1 | Nakshatra | `BACKLOG` | `NOT STARTED` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |

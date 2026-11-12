@@ -3,7 +3,11 @@ import type { PoolClient, QueryResult, QueryResultRow } from 'pg';
 import type { VerifiedTenantContext } from '@ft360/shared-types';
 import { isValidUuid } from '../common/uuid.util';
 import { DatabasePoolService } from './database-pool.service';
-import { InvalidTenantContextError, type QueryExecutor } from './database.types';
+import {
+  InvalidTenantContextError,
+  UnauthorizedTenantMembershipError,
+  type QueryExecutor,
+} from './database.types';
 
 const PROHIBITED_TX_SQL_PATTERN = /\b(SET\s+SESSION|SET\s+ROLE|RESET\s+ROLE|COMMIT|ROLLBACK|BEGIN)\b/i;
 
@@ -80,6 +84,65 @@ export class TenantTransactionManager {
         client.release();
       }
     }
+  }
+
+  /**
+   * Executes `work` inside a tenant-scoped transaction AND validates inside PostgreSQL
+   * that `actorUserId` holds an `ACTIVE` membership in an `ACTIVE` or `TRIAL` tenant
+   * with an `ACTIVE` global user account before running any domain SQL.
+   */
+  async withVerifiedMemberTransaction<T>(
+    ctx: VerifiedTenantContext,
+    work: (tx: QueryExecutor, verifiedMembershipId: string) => Promise<T>,
+  ): Promise<T> {
+    return this.withTenantTransaction(ctx, async (tx) => {
+      const normalizedUserId = ctx.actorUserId.trim().toLowerCase();
+      const normalizedTenantId = ctx.tenantId.trim().toLowerCase();
+
+      const verifyRes = await tx.query<{
+        membership_id: string;
+        membership_status: string;
+        tenant_status: string;
+        user_status: string;
+      }>(
+        `SELECT membership_id, membership_status, tenant_status, user_status
+         FROM public.fn_verify_tenant_membership($1::uuid, $2::uuid)`,
+        [normalizedUserId, normalizedTenantId],
+      );
+
+      const membership = verifyRes.rows[0];
+      if (!membership) {
+        throw new UnauthorizedTenantMembershipError(
+          'Access denied: actor is not a member of the target tenant.',
+        );
+      }
+      if (membership.user_status !== 'ACTIVE') {
+        throw new UnauthorizedTenantMembershipError(
+          `Access denied: user status is ${membership.user_status}.`,
+        );
+      }
+      if (membership.membership_status !== 'ACTIVE') {
+        throw new UnauthorizedTenantMembershipError(
+          `Access denied: membership status is ${membership.membership_status}.`,
+        );
+      }
+      if (membership.tenant_status !== 'ACTIVE' && membership.tenant_status !== 'TRIAL') {
+        throw new UnauthorizedTenantMembershipError(
+          `Access denied: tenant status is ${membership.tenant_status}.`,
+        );
+      }
+
+      if (
+        ctx.membershipId &&
+        ctx.membershipId.trim().toLowerCase() !== membership.membership_id.toLowerCase()
+      ) {
+        throw new UnauthorizedTenantMembershipError(
+          'Access denied: context membershipId does not match verified database membership.',
+        );
+      }
+
+      return work(tx, membership.membership_id);
+    });
   }
 
   /**

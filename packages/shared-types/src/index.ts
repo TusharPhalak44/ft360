@@ -81,3 +81,111 @@ export interface VerifiedTenantContext {
   readonly correlationId: string;
 }
 
+// =============================================================================
+// Phase 2 – Foundational Multi-Tenant Database Domain Types
+// =============================================================================
+
+export type UserStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'ARCHIVED';
+
+export type TenantStatus = 'PROVISIONING' | 'TRIAL' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
+
+export type MembershipType = 'INTERNAL' | 'CLIENT_PORTAL' | 'PARTNER';
+
+export type MembershipStatus = 'INVITED' | 'ACTIVE' | 'SUSPENDED' | 'REVOKED';
+
+export type PermissionScopePlane = 'PLATFORM' | 'TENANT' | 'PORTAL';
+
+export type DataAccessScope = 'OWN' | 'TEAM' | 'TENANT';
+
+export interface UserEntity {
+  id: string;
+  email: string;
+  fullName: string;
+  phoneE164: string | null;
+  status: UserStatus;
+  isPlatformSuperAdmin: boolean;
+  emailVerified: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TenantEntity {
+  id: string;
+  slug: string;
+  legalName: string;
+  displayName: string;
+  status: TenantStatus;
+  defaultTimezone: string;
+  defaultCurrency: string;
+  activatedAt: string | null;
+  suspendedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TenantMembershipEntity {
+  id: string;
+  tenantId: string;
+  userId: string;
+  membershipType: MembershipType;
+  status: MembershipStatus;
+  jobTitle: string | null;
+  employeeCode: string | null;
+  invitedByUserId: string | null;
+  joinedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PermissionEntity {
+  id: string;
+  code: string;
+  scopePlane: PermissionScopePlane;
+  moduleCode: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RoleEntity {
+  id: string;
+  tenantId: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  isSystemRole: boolean;
+  dataAccessScope: DataAccessScope;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RolePermissionEntity {
+  id: string;
+  tenantId: string;
+  roleId: string;
+  permissionId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserRoleAssignmentEntity {
+  id: string;
+  tenantId: string;
+  membershipId: string;
+  roleId: string;
+  assignedByMembershipId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ActiveUserTenantSummary {
+  membershipId: string;
+  tenantId: string;
+  tenantSlug: string;
+  tenantDisplayName: string;
+  tenantStatus: TenantStatus;
+  membershipType: MembershipType;
+  membershipStatus: MembershipStatus;
+}
+
