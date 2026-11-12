@@ -14,11 +14,12 @@ interface RoleSecurityProbeRow {
 export class DatabasePoolService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DatabasePoolService.name);
   private readonly pool: Pool;
+  private rolePostureVerified = false;
 
   constructor(@Inject(APP_CONFIG) private readonly config: AppEnvConfig) {
     this.pool = new Pool({
       connectionString: this.config.database.appUrl,
-      min: this.config.database.poolMin,
+      min: 0,
       max: this.config.database.poolMax,
       idleTimeoutMillis: this.config.database.idleTimeoutMs,
       connectionTimeoutMillis: this.config.database.connectionTimeoutMs,
@@ -32,7 +33,21 @@ export class DatabasePoolService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit(): Promise<void> {
-    await this.verifyLeastPrivilegeRole();
+    try {
+      await this.verifyLeastPrivilegeRole();
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('FATAL SECURITY VIOLATION')) {
+        throw error;
+      }
+      if (this.config.nodeEnv === 'production') {
+        throw error;
+      }
+      this.logger.warn(
+        `PostgreSQL is not reachable yet (${error instanceof Error ? error.message : 'connection failed'}). ` +
+          `API is starting in degraded readiness mode (/api/v1/health -> 503). ` +
+          `Start Docker Desktop and run "npm run infra:up" then "npm run db:migrate".`,
+      );
+    }
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -69,13 +84,19 @@ export class DatabasePoolService implements OnModuleInit, OnModuleDestroy {
       );
     }
 
+    this.rolePostureVerified = true;
     return row;
   }
 
   /**
    * Internal client checkout reserved strictly for TenantTransactionManager.
+   * Ensures least-privilege role posture is verified before any client is used,
+   * even if PostgreSQL came online after the API process booted.
    */
   async connectClient(): Promise<PoolClient> {
+    if (!this.rolePostureVerified) {
+      await this.verifyLeastPrivilegeRole();
+    }
     return this.pool.connect();
   }
 
@@ -89,6 +110,9 @@ export class DatabasePoolService implements OnModuleInit, OnModuleDestroy {
     sql: string,
     params: readonly unknown[] = [],
   ): Promise<QueryResult<R>> {
+    if (!this.rolePostureVerified) {
+      await this.verifyLeastPrivilegeRole();
+    }
     return this.pool.query<R>(sql, [...params]);
   }
 

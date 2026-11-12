@@ -43,11 +43,12 @@ npm run build --workspace=@ft360/shared-types
 npm run db:migrate
 npm run db:migrate:status
 
-# 5. Start Backend (http://localhost:4000/api/v1 | Swagger: http://localhost:4000/api/docs)
-npm run dev:api
+# 5. Start both Backend (:4000, Swagger :4000/api/docs) and Frontend (:3000) together
+npm run dev
 
-# 6. In a second terminal, start Frontend (http://localhost:3000)
-npm run dev:web
+# Or run them in separate terminals if preferred:
+# npm run dev:api
+# npm run dev:web
 ```
 
 ---

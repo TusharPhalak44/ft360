@@ -14,6 +14,7 @@
   "scripts": {
     "check:no-orm": "node scripts/check-no-orm.mjs",
     "build": "npm run check:no-orm && npm run build --workspace=@ft360/shared-types && npm run build --workspace=@ft360/api && npm run build --workspace=@ft360/web",
+    "dev": "node scripts/dev.mjs",
     "dev:api": "npm run dev --workspace=@ft360/api",
     "dev:web": "npm run dev --workspace=@ft360/web",
     "lint": "npm run check:no-orm && npm run lint --workspaces --if-present",

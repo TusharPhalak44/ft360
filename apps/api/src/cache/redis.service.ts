@@ -10,6 +10,7 @@ const SAFE_TOKEN_REGEX = /^[a-zA-Z0-9:_-]{1,128}$/;
 export class RedisService implements OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
   private readonly client: Redis;
+  private loggedOfflineWarning = false;
 
   constructor(@Inject(APP_CONFIG) private readonly config: AppEnvConfig) {
     this.client = new Redis({
@@ -17,17 +18,28 @@ export class RedisService implements OnModuleDestroy {
       port: this.config.redis.port,
       password: this.config.redis.password,
       db: this.config.redis.cacheDb,
-      maxRetriesPerRequest: 3,
+      maxRetriesPerRequest: 1,
+      enableOfflineQueue: false,
       enableReadyCheck: true,
+      retryStrategy: (times) => Math.min(times * 2000, 15000),
+    });
+
+    this.client.on('ready', () => {
+      this.loggedOfflineWarning = false;
     });
 
     this.client.on('error', (err) => {
-      this.logger.warn(`Redis cache connection warning: ${err.message}`);
+      if (!this.loggedOfflineWarning) {
+        this.loggedOfflineWarning = true;
+        this.logger.warn(
+          `Redis cache unreachable (${err.message}). Start Docker Desktop and run "npm run infra:up".`,
+        );
+      }
     });
   }
 
   async onModuleDestroy(): Promise<void> {
-    await this.client.quit();
+    this.client.disconnect();
   }
 
   /**

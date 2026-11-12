@@ -52,3 +52,4 @@ Recorded verbatim from `%LOCALAPPDATA%\Docker\log\host\docker-desktop.exe.log`:
    npm run db:migrate
    npm run test:integration
    ```
+

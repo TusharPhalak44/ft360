@@ -14,6 +14,8 @@ export const SYSTEM_MAINTENANCE_QUEUE = 'system-maintenance';
           port: config.redis.port,
           password: config.redis.password,
           db: config.redis.queueDb,
+          lazyConnect: true,
+          retryStrategy: (times: number) => Math.min(times * 2000, 15000),
         },
         prefix: 'ft360:q',
         defaultJobOptions: {

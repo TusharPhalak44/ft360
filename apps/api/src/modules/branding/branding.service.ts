@@ -11,20 +11,24 @@ export class BrandingService {
   ) {}
 
   async resolvePublicBranding(): Promise<ProductBrandingConfig> {
-    const platformRow = await this.brandingRepository.findPlatformBranding();
-    if (platformRow) {
-      return {
-        productName: platformRow.product_name,
-        tagline: platformRow.tagline,
-        supportEmail: platformRow.support_email,
-        websiteUrl: platformRow.website_url,
-        logoLightUrl: platformRow.logo_light_url,
-        logoDarkUrl: platformRow.logo_dark_url,
-        faviconUrl: platformRow.favicon_url,
-        primaryColorHex: platformRow.primary_color_hex,
-        accentColorHex: platformRow.accent_color_hex,
-        source: 'PLATFORM',
-      };
+    try {
+      const platformRow = await this.brandingRepository.findPlatformBranding();
+      if (platformRow) {
+        return {
+          productName: platformRow.product_name,
+          tagline: platformRow.tagline,
+          supportEmail: platformRow.support_email,
+          websiteUrl: platformRow.website_url,
+          logoLightUrl: platformRow.logo_light_url,
+          logoDarkUrl: platformRow.logo_dark_url,
+          faviconUrl: platformRow.favicon_url,
+          primaryColorHex: platformRow.primary_color_hex,
+          accentColorHex: platformRow.accent_color_hex,
+          source: 'PLATFORM',
+        };
+      }
+    } catch {
+      // Fall back to bootstrap branding config when PostgreSQL is offline during initial setup
     }
 
     const defaults = this.config.brandingDefaults;

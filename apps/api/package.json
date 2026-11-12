@@ -5,14 +5,14 @@
   "description": "Authoritative NestJS Modular Monolith Backend (Native pg + PostgreSQL 18 RLS + Redis/BullMQ)",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "dev": "tsx watch src/main.ts",
+    "dev": "node scripts/dev-watch.mjs",
     "start": "node dist/main.js",
     "start:prod": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "db:migrate": "tsx src/database/migrations/cli.ts up",
-    "db:migrate:status": "tsx src/database/migrations/cli.ts status",
-    "db:migrate:rollback": "tsx src/database/migrations/cli.ts down",
+    "db:migrate": "tsc -p tsconfig.build.json && node dist/database/migrations/cli.js up",
+    "db:migrate:status": "tsc -p tsconfig.build.json && node dist/database/migrations/cli.js status",
+    "db:migrate:rollback": "tsc -p tsconfig.build.json && node dist/database/migrations/cli.js down",
     "test:unit": "jest --config ./test/jest-unit.json",
     "test:integration": "jest --config ./test/jest-integration.json --runInBand",
     "test": "npm run test:unit && npm run test:integration"
@@ -43,8 +43,6 @@
     "@types/supertest": "^6.0.2",
     "jest": "^29.7.0",
     "supertest": "^7.0.0",
-    "ts-jest": "^29.2.6",
-    "tsx": "^4.19.3"
+    "ts-jest": "^29.2.6"
   }
 }
-

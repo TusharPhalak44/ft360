@@ -51,18 +51,17 @@ Many developer workstations run a local Windows PostgreSQL service (commonly on 
    npm run test:integration
    ```
 6. **Launch Backend & Frontend Services:**
-   - Terminal 1 (NestJS API + Swagger):
+   - **Single Command (Recommended):** Starts both `@ft360/api` (`:4000`) and `@ft360/web` (`:3000`) concurrently:
      ```powershell
-     npm run dev:api
+     npm run dev
      ```
-     - Health Readiness JSON: `http://localhost:4000/api/v1/health`
-     - Public Branding JSON: `http://localhost:4000/api/v1/public/branding`
-     - Swagger OpenAPI UI: `http://localhost:4000/api/docs`
-   - Terminal 2 (Next.js Web UI):
-     ```powershell
-     npm run dev:web
-     ```
-     - Web Foundation Status UI: `http://localhost:3000`
+   - **Separate Terminals (Optional):**
+     - Terminal 1 (NestJS API + Swagger): `npm run dev:api`
+       - Health Readiness JSON: `http://localhost:4000/api/v1/health`
+       - Public Branding JSON: `http://localhost:4000/api/v1/public/branding`
+       - Swagger OpenAPI UI: `http://localhost:4000/api/docs`
+     - Terminal 2 (Next.js Web UI): `npm run dev:web`
+       - Web Foundation Status UI: `http://localhost:3000`
 
 ---
 
