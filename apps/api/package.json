@@ -13,6 +13,7 @@
     "db:migrate": "tsc -p tsconfig.build.json && node dist/database/migrations/cli.js up",
     "db:migrate:status": "tsc -p tsconfig.build.json && node dist/database/migrations/cli.js status",
     "db:migrate:rollback": "tsc -p tsconfig.build.json && node dist/database/migrations/cli.js down",
+    "auth:bootstrap-super-admin": "tsc -p tsconfig.build.json && node dist/modules/auth/bootstrap-super-admin.cli.js",
     "test:unit": "jest --config ./test/jest-unit.json",
     "test:integration": "jest --config ./test/jest-integration.json --runInBand",
     "test": "npm run test:unit && npm run test:integration"

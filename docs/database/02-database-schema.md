@@ -1,8 +1,8 @@
 # Core Database Schema & Table Catalog
 
 **Last Updated:** 2026-11-13  
-**Status:** Phase 3 Implemented Schema (`0001`–`0005`) + Phases 4–7 Roadmap Catalog  
-**Version:** 0.3.0
+**Status:** Phase 3 Implemented Schema (`0001`–`0006`) + Phases 4–7 Roadmap Catalog  
+**Version:** 0.3.1
 
 ---
 
@@ -17,7 +17,7 @@ Provisioned at database initialization (`docker/postgres/init/01-init-roles.sh`,
 
 ---
 
-## 2. Implemented Tables (`migrations 0001–0005`)
+## 2. Implemented Tables (`migrations 0001–0006`)
 
 | Table Name | Migration | Scope Plane | Primary Key | `tenant_id`? | `ENABLE` + `FORCE RLS` | `ft360_app` Grants |
 |---|---|---|---|---|---|---|
@@ -34,7 +34,9 @@ Provisioned at database initialization (`docker/postgres/init/01-init-roles.sh`,
 | `auth_sessions` | `0005` | Auth Session Ledger | `id UUID DEFAULT uuidv7()` | Nullable `active_tenant_id` | **Yes (`FORCE`)** | Column `SELECT` *(no refresh/csrf hashes)*, Column `UPDATE` *(revocation only)* |
 | `email_verification_tokens` | `0005` | Auth Verification | `id UUID DEFAULT uuidv7()` | No | **Yes (`FORCE`)** | Column `SELECT` *(no `token_hash`, Super Admin only)* |
 | `password_reset_tokens` | `0005` | Auth Recovery | `id UUID DEFAULT uuidv7()` | No | **Yes (`FORCE`)** | Column `SELECT` *(no `token_hash`, Super Admin only)* |
-| `auth_audit_logs` | `0005` | Append-Only Security Audit | `id UUID DEFAULT uuidv7()` | Nullable `tenant_id` | **Yes (`FORCE`)** | `SELECT, INSERT` *(zero `UPDATE`/`DELETE`)* |
+| `auth_audit_logs` | `0005` / `0006` | Append-Only Security Audit | `id UUID DEFAULT uuidv7()` | Nullable `tenant_id` | **Yes (`FORCE`)** | `SELECT, INSERT` *(zero `UPDATE`/`DELETE`; recursive `chk_auth_audit_logs_no_secret_keys`)* |
+| `auth_refresh_token_history` | `0006` | Auth Replay Lineage | `id UUID DEFAULT uuidv7()` | No | **Yes (`FORCE`)** | Column `SELECT` *(no `token_hash` / `replaced_by_token_hash`; Super Admin only)* |
+| `auth_email_outbox` | `0006` | Durable Auth Mail Outbox | `id UUID DEFAULT uuidv7()` | No | **Yes (`FORCE`)** | Column `SELECT` *(no `encrypted_action_token`; Super Admin only)* |
 
 ---
 

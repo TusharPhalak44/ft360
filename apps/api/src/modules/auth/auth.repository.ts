@@ -12,6 +12,7 @@ import type {
 } from '@ft360/shared-types';
 import { DatabasePoolService } from '../../database/database-pool.service';
 import type { QueryExecutor } from '../../database/database.types';
+import { TenantTransactionManager } from '../../database/tenant-transaction.manager';
 
 export interface LoginCandidateRow {
   userId: string;
@@ -42,13 +43,13 @@ export interface ValidatedSessionDbRecord {
 
 export interface RefreshRotationDbResult {
   outcome:
-  | 'NOT_FOUND'
-  | 'REPLAY_DETECTED'
-  | 'REVOKED'
-  | 'EXPIRED'
-  | 'CSRF_INVALID'
-  | 'USER_INACTIVE'
-  | 'ROTATED';
+    | 'NOT_FOUND'
+    | 'REPLAY_DETECTED'
+    | 'REVOKED'
+    | 'EXPIRED'
+    | 'CSRF_INVALID'
+    | 'USER_INACTIVE'
+    | 'ROTATED';
   sessionId: string | null;
   familyId: string | null;
   userId: string | null;
@@ -60,6 +61,45 @@ export interface RefreshRotationDbResult {
   revokedFamilySessionIds: string[];
 }
 
+export type EmailOutboxStatus =
+  | 'PENDING'
+  | 'PROCESSING'
+  | 'SENT'
+  | 'FAILED_RETRYABLE'
+  | 'DEAD_LETTER'
+  | 'EXPIRED';
+
+export interface ClaimedEmailOutboxRecord {
+  outboxId: string;
+  kind: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET';
+  userId: string;
+  recipientEmail: string;
+  recipientFullName: string;
+  encryptedActionToken: string | null;
+  tokenExpiresAtIso: string;
+  status: EmailOutboxStatus;
+  attemptCount: number;
+  maxAttempts: number;
+  correlationId: string;
+}
+
+export interface EmailOutboxStatusRecord {
+  outboxId: string;
+  kind: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET';
+  userId: string;
+  recipientEmail: string;
+  status: EmailOutboxStatus;
+  attemptCount: number;
+  maxAttempts: number;
+  nextAttemptAtIso: string;
+  providerName: string | null;
+  providerMessageId: string | null;
+  lastErrorCode: string | null;
+  lastErrorRedacted: string | null;
+  hasCiphertext: boolean;
+  sentAtIso: string | null;
+}
+
 function toIso(val: Date | string | null): string | null {
   if (val === null || val === undefined) return null;
   return val instanceof Date ? val.toISOString() : String(val);
@@ -67,7 +107,10 @@ function toIso(val: Date | string | null): string | null {
 
 @Injectable()
 export class AuthRepository {
-  constructor(private readonly dbPool: DatabasePoolService) { }
+  constructor(
+    private readonly dbPool: DatabasePoolService,
+    private readonly txManager: TenantTransactionManager,
+  ) {}
 
   async registerPendingUser(input: {
     email: string;
@@ -263,86 +306,91 @@ export class AuthRepository {
     idleExpiresAtEpochMs: number;
     expiresAtEpochMs: number;
   }> {
-    const res = await this.dbPool.queryUnscoped<{
-      session_id: string;
-      family_id: string;
-      user_id: string;
-      idle_expires_at: Date | string;
-      expires_at: Date | string;
-    }>(
-      `SELECT session_id, family_id, user_id, idle_expires_at, expires_at
-       FROM public.fn_auth_create_session(
-         $1::uuid,
-         $2::char(64),
-         $3::char(64),
-         $4,
-         $5,
-         $6::inet,
-         $7
-       )`,
-      [
-        input.userId,
-        input.refreshTokenHashHex,
-        input.csrfSecretHashHex,
-        input.idleTtlSeconds,
-        input.absoluteTtlSeconds,
-        input.ipAddress,
-        input.userAgent,
-      ],
-    );
-    const row = res.rows[0];
-    return {
-      sessionId: row.session_id,
-      familyId: row.family_id,
-      userId: row.user_id,
-      idleExpiresAtEpochMs: new Date(row.idle_expires_at).getTime(),
-      expiresAtEpochMs: new Date(row.expires_at).getTime(),
-    };
+    return this.txManager.withAuthenticatedUserTransaction(input.userId, async (tx) => {
+      const res = await tx.query<{
+        session_id: string;
+        family_id: string;
+        user_id: string;
+        idle_expires_at: Date | string;
+        expires_at: Date | string;
+      }>(
+        `SELECT session_id, family_id, user_id, idle_expires_at, expires_at
+         FROM public.fn_auth_create_session(
+           $1::uuid,
+           $2::char(64),
+           $3::char(64),
+           $4,
+           $5,
+           $6::inet,
+           $7
+         )`,
+        [
+          input.userId,
+          input.refreshTokenHashHex,
+          input.csrfSecretHashHex,
+          input.idleTtlSeconds,
+          input.absoluteTtlSeconds,
+          input.ipAddress,
+          input.userAgent,
+        ],
+      );
+      const row = res.rows[0];
+      return {
+        sessionId: row.session_id,
+        familyId: row.family_id,
+        userId: row.user_id,
+        idleExpiresAtEpochMs: new Date(row.idle_expires_at).getTime(),
+        expiresAtEpochMs: new Date(row.expires_at).getTime(),
+      };
+    });
   }
 
   async validateSessionInDb(
     sessionId: string,
-    candidateCsrfHashHex?: string | null,
+    candidateCsrfHashHex: string | null | undefined,
+    actorUserId: string,
   ): Promise<ValidatedSessionDbRecord | null> {
-    const res = await this.dbPool.queryUnscoped<{
-      session_id: string;
-      family_id: string;
-      user_id: string;
-      active_tenant_id: string | null;
-      active_membership_id: string | null;
-      idle_expires_at: Date | string;
-      expires_at: Date | string;
-      revoked_at: Date | string | null;
-      user_status: UserStatus;
-      user_email_verified: boolean;
-      is_platform_super_admin: boolean;
-      csrf_valid: boolean;
-    }>(
-      `SELECT
-         session_id, family_id, user_id, active_tenant_id, active_membership_id,
-         idle_expires_at, expires_at, revoked_at, user_status, user_email_verified,
-         is_platform_super_admin, csrf_valid
-       FROM public.fn_auth_validate_session($1::uuid, $2::char(64))`,
-      [sessionId, candidateCsrfHashHex ?? null],
-    );
+    return this.txManager.withAuthenticatedUserTransaction(actorUserId, async (tx) => {
+      const res = await tx.query<{
+        session_id: string;
+        family_id: string;
+        user_id: string;
+        active_tenant_id: string | null;
+        active_membership_id: string | null;
+        idle_expires_at: Date | string;
+        expires_at: Date | string;
+        revoked_at: Date | string | null;
+        user_status: UserStatus;
+        user_email_verified: boolean;
+        is_platform_super_admin: boolean;
+        csrf_valid: boolean;
+      }>(
+        `SELECT
+           session_id, family_id, user_id, active_tenant_id, active_membership_id,
+           idle_expires_at, expires_at, revoked_at, user_status, user_email_verified,
+           is_platform_super_admin, csrf_valid
+         FROM public.fn_auth_validate_session($1::uuid, $2::char(64))`,
+        [sessionId, candidateCsrfHashHex ?? null],
+      );
 
-    const row = res.rows[0];
-    if (!row) return null;
+      const row = res.rows[0];
+      if (!row) return null;
 
-    return {
-      sessionId: row.session_id,
-      familyId: row.family_id,
-      userId: row.user_id,
-      activeTenantId: row.active_tenant_id,
-      activeMembershipId: row.active_membership_id,
-      idleExpiresAtEpochMs: new Date(row.idle_expires_at).getTime(),
-      expiresAtEpochMs: new Date(row.expires_at).getTime(),
-      revokedAt: toIso(row.revoked_at),
-      userStatus: row.user_status,
-      userEmailVerified: row.user_email_verified,
-      isPlatformSuperAdmin: row.is_platform_super_admin,
-      csrfValid: row.csrf_valid,
-    };
+      return {
+        sessionId: row.session_id,
+        familyId: row.family_id,
+        userId: row.user_id,
+        activeTenantId: row.active_tenant_id,
+        activeMembershipId: row.active_membership_id,
+        idleExpiresAtEpochMs: new Date(row.idle_expires_at).getTime(),
+        expiresAtEpochMs: new Date(row.expires_at).getTime(),
+        revokedAt: toIso(row.revoked_at),
+        userStatus: row.user_status,
+        userEmailVerified: row.user_email_verified,
+        isPlatformSuperAdmin: row.is_platform_super_admin,
+        csrfValid: row.csrf_valid,
+      };
+    });
   }
 
   async rotateRefreshSession(input: {
@@ -417,31 +465,50 @@ export class AuthRepository {
     activeTenantId: string | null;
     activeMembershipId: string | null;
   }> {
-    const res = await this.dbPool.queryUnscoped<{
-      outcome: string;
-      session_id: string | null;
-      active_tenant_id: string | null;
-      active_membership_id: string | null;
-    }>(
-      `SELECT outcome, session_id, active_tenant_id, active_membership_id
-       FROM public.fn_auth_bind_session_organization($1::uuid, $2::uuid, $3::uuid)`,
-      [input.sessionId, input.userId, input.targetTenantId],
-    );
-    const row = res.rows[0];
-    return {
-      outcome: row.outcome,
-      sessionId: row.session_id,
-      activeTenantId: row.active_tenant_id,
-      activeMembershipId: row.active_membership_id,
-    };
+    return this.txManager.withAuthenticatedUserTransaction(input.userId, async (tx) => {
+      const res = await tx.query<{
+        outcome: string;
+        session_id: string | null;
+        active_tenant_id: string | null;
+        active_membership_id: string | null;
+      }>(
+        `SELECT outcome, session_id, active_tenant_id, active_membership_id
+         FROM public.fn_auth_bind_session_organization($1::uuid, $2::uuid, $3::uuid)`,
+        [input.sessionId, input.userId, input.targetTenantId],
+      );
+      const row = res.rows[0];
+      return {
+        outcome: row.outcome,
+        sessionId: row.session_id,
+        activeTenantId: row.active_tenant_id,
+        activeMembershipId: row.active_membership_id,
+      };
+    });
   }
 
   async revokeSession(sessionId: string, userId: string, reason: string): Promise<boolean> {
-    const res = await this.dbPool.queryUnscoped<{ revoked: boolean }>(
-      `SELECT public.fn_auth_revoke_session($1::uuid, $2::uuid, $3) AS revoked`,
-      [sessionId, userId, reason],
-    );
-    return Boolean(res.rows[0]?.revoked);
+    return this.txManager.withAuthenticatedUserTransaction(userId, async (tx) => {
+      const res = await tx.query<{ revoked: boolean }>(
+        `SELECT public.fn_auth_revoke_session($1::uuid, $2::uuid, $3) AS revoked`,
+        [sessionId, userId, reason],
+      );
+      return Boolean(res.rows[0]?.revoked);
+    });
+  }
+
+  async revokeSessionAsPlatformAdmin(
+    actorSuperAdminUserId: string,
+    sessionId: string,
+    targetUserId: string,
+    reason: string,
+  ): Promise<boolean> {
+    return this.txManager.withPlatformAdminTransaction(actorSuperAdminUserId, async (tx) => {
+      const res = await tx.query<{ revoked: boolean }>(
+        `SELECT public.fn_auth_revoke_session($1::uuid, $2::uuid, $3) AS revoked`,
+        [sessionId, targetUserId, reason],
+      );
+      return Boolean(res.rows[0]?.revoked);
+    });
   }
 
   async revokeSessionByRefreshHash(
@@ -467,11 +534,27 @@ export class AuthRepository {
   }
 
   async revokeAllUserSessions(userId: string, reason: string): Promise<string[]> {
-    const res = await this.dbPool.queryUnscoped<{ ids: string[] | null }>(
-      `SELECT public.fn_auth_revoke_all_user_sessions($1::uuid, $2) AS ids`,
-      [userId, reason],
-    );
-    return res.rows[0]?.ids ?? [];
+    return this.txManager.withAuthenticatedUserTransaction(userId, async (tx) => {
+      const res = await tx.query<{ ids: string[] | null }>(
+        `SELECT public.fn_auth_revoke_all_user_sessions($1::uuid, $2) AS ids`,
+        [userId, reason],
+      );
+      return res.rows[0]?.ids ?? [];
+    });
+  }
+
+  async revokeAllUserSessionsAsPlatformAdmin(
+    actorSuperAdminUserId: string,
+    targetUserId: string,
+    reason: string,
+  ): Promise<string[]> {
+    return this.txManager.withPlatformAdminTransaction(actorSuperAdminUserId, async (tx) => {
+      const res = await tx.query<{ ids: string[] | null }>(
+        `SELECT public.fn_auth_revoke_all_user_sessions($1::uuid, $2) AS ids`,
+        [targetUserId, reason],
+      );
+      return res.rows[0]?.ids ?? [];
+    });
   }
 
   async listActiveUserTenants(userId: string): Promise<ActiveUserTenantSummary[]> {
@@ -670,5 +753,184 @@ export class AuthRepository {
       ? await input.tx.query<{ id: string }>(sql, params)
       : await this.dbPool.queryUnscoped<{ id: string }>(sql, params);
     return res.rows[0].id;
+  }
+
+  async enqueueEmailOutbox(input: {
+    kind: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET';
+    userId: string;
+    recipientEmail: string;
+    recipientFullName: string;
+    encryptedActionToken: string;
+    tokenTtlSeconds: number;
+    maxAttempts: number;
+    correlationId: string;
+  }): Promise<string> {
+    const res = await this.dbPool.queryUnscoped<{ outbox_id: string }>(
+      `SELECT public.fn_auth_enqueue_email_outbox(
+         $1, $2::uuid, $3::citext, $4, $5, $6, $7, $8::uuid
+       ) AS outbox_id`,
+      [
+        input.kind,
+        input.userId,
+        input.recipientEmail.trim().toLowerCase(),
+        input.recipientFullName.trim(),
+        input.encryptedActionToken,
+        input.tokenTtlSeconds,
+        input.maxAttempts,
+        input.correlationId,
+      ],
+    );
+    return res.rows[0].outbox_id;
+  }
+
+  async claimEmailOutboxById(outboxId: string): Promise<ClaimedEmailOutboxRecord | null> {
+    const res = await this.dbPool.queryUnscoped<{
+      outbox_id: string;
+      kind: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET';
+      user_id: string;
+      recipient_email: string;
+      recipient_full_name: string;
+      encrypted_action_token: string | null;
+      token_expires_at: Date | string;
+      status: EmailOutboxStatus;
+      attempt_count: number;
+      max_attempts: number;
+      correlation_id: string;
+    }>(
+      `SELECT
+         outbox_id, kind, user_id, recipient_email, recipient_full_name,
+         encrypted_action_token, token_expires_at, status, attempt_count, max_attempts, correlation_id
+       FROM public.fn_auth_claim_email_outbox_by_id($1::uuid)`,
+      [outboxId],
+    );
+    const row = res.rows[0];
+    if (!row) return null;
+    return {
+      outboxId: row.outbox_id,
+      kind: row.kind,
+      userId: row.user_id,
+      recipientEmail: row.recipient_email,
+      recipientFullName: row.recipient_full_name,
+      encryptedActionToken: row.encrypted_action_token,
+      tokenExpiresAtIso: toIso(row.token_expires_at)!,
+      status: row.status,
+      attemptCount: row.attempt_count,
+      maxAttempts: row.max_attempts,
+      correlationId: row.correlation_id,
+    };
+  }
+
+  async claimEmailOutboxBatch(batchSize = 10): Promise<ClaimedEmailOutboxRecord[]> {
+    const res = await this.dbPool.queryUnscoped<{
+      outbox_id: string;
+      kind: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET';
+      user_id: string;
+      recipient_email: string;
+      recipient_full_name: string;
+      encrypted_action_token: string | null;
+      token_expires_at: Date | string;
+      status: EmailOutboxStatus;
+      attempt_count: number;
+      max_attempts: number;
+      correlation_id: string;
+    }>(
+      `SELECT
+         outbox_id, kind, user_id, recipient_email, recipient_full_name,
+         encrypted_action_token, token_expires_at, status, attempt_count, max_attempts, correlation_id
+       FROM public.fn_auth_claim_email_outbox_batch($1)`,
+      [batchSize],
+    );
+
+    return res.rows.map((row) => ({
+      outboxId: row.outbox_id,
+      kind: row.kind,
+      userId: row.user_id,
+      recipientEmail: row.recipient_email,
+      recipientFullName: row.recipient_full_name,
+      encryptedActionToken: row.encrypted_action_token,
+      tokenExpiresAtIso: toIso(row.token_expires_at)!,
+      status: row.status,
+      attemptCount: row.attempt_count,
+      maxAttempts: row.max_attempts,
+      correlationId: row.correlation_id,
+    }));
+  }
+
+  async completeEmailOutboxDelivery(
+    outboxId: string,
+    providerName: string,
+    providerMessageId: string,
+  ): Promise<boolean> {
+    const res = await this.dbPool.queryUnscoped<{ completed: boolean }>(
+      `SELECT public.fn_auth_complete_email_outbox_delivery($1::uuid, $2, $3) AS completed`,
+      [outboxId, providerName, providerMessageId],
+    );
+    return Boolean(res.rows[0]?.completed);
+  }
+
+  async failEmailOutboxDelivery(input: {
+    outboxId: string;
+    backoffSeconds: number;
+    errorCode: string;
+    errorRedacted: string;
+    forceDeadLetter?: boolean;
+  }): Promise<EmailOutboxStatus> {
+    const res = await this.dbPool.queryUnscoped<{ next_status: EmailOutboxStatus }>(
+      `SELECT public.fn_auth_fail_email_outbox_delivery($1::uuid, $2, $3, $4, $5) AS next_status`,
+      [
+        input.outboxId,
+        input.backoffSeconds,
+        input.errorCode,
+        input.errorRedacted,
+        Boolean(input.forceDeadLetter),
+      ],
+    );
+    return res.rows[0].next_status;
+  }
+
+  async getEmailOutboxStatus(outboxId: string): Promise<EmailOutboxStatusRecord | null> {
+    const res = await this.dbPool.queryUnscoped<{
+      outbox_id: string;
+      kind: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET';
+      user_id: string;
+      recipient_email: string;
+      status: EmailOutboxStatus;
+      attempt_count: number;
+      max_attempts: number;
+      next_attempt_at: Date | string;
+      provider_name: string | null;
+      provider_message_id: string | null;
+      last_error_code: string | null;
+      last_error_redacted: string | null;
+      has_ciphertext: boolean;
+      sent_at: Date | string | null;
+    }>(
+      `SELECT
+         outbox_id, kind, user_id, recipient_email, status, attempt_count, max_attempts,
+         next_attempt_at, provider_name, provider_message_id, last_error_code, last_error_redacted,
+         has_ciphertext, sent_at
+       FROM public.fn_auth_get_email_outbox_status($1::uuid)`,
+      [outboxId],
+    );
+
+    const row = res.rows[0];
+    if (!row) return null;
+
+    return {
+      outboxId: row.outbox_id,
+      kind: row.kind,
+      userId: row.user_id,
+      recipientEmail: row.recipient_email,
+      status: row.status,
+      attemptCount: row.attempt_count,
+      maxAttempts: row.max_attempts,
+      nextAttemptAtIso: toIso(row.next_attempt_at)!,
+      providerName: row.provider_name,
+      providerMessageId: row.provider_message_id,
+      lastErrorCode: row.last_error_code,
+      lastErrorRedacted: row.last_error_redacted,
+      hasCiphertext: row.has_ciphertext,
+      sentAtIso: toIso(row.sent_at),
+    };
   }
 }

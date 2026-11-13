@@ -5,8 +5,46 @@ import { isValidUuid } from '../../common/uuid.util';
 import type { QueryExecutor } from '../../database/database.types';
 import { AuthRepository } from './auth.repository';
 
-const FORBIDDEN_SECRET_METADATA_KEY =
-  /^(password|passwordhash|password_hash|refreshtoken|refresh_token|refreshtokenhash|refresh_token_hash|accesstoken|access_token|csrfsecret|csrf_secret|csrfsecrethash|csrf_secret_hash|rawtoken|token|secret)$/i;
+/**
+ * Canonical normalized secret-bearing key set matching PostgreSQL's
+ * `public.fn_jsonb_has_forbidden_secret_key` (`lower` + strip `[\s_-]+`).
+ */
+const FORBIDDEN_NORMALIZED_SECRET_KEYS = new Set([
+  'password',
+  'passwd',
+  'pwd',
+  'passwordhash',
+  'newpassword',
+  'oldpassword',
+  'currentpassword',
+  'accesstoken',
+  'refreshtoken',
+  'refreshtokenhash',
+  'previousrefreshtokenhash',
+  'csrfsecret',
+  'csrfsecrethash',
+  'csrftoken',
+  'rawtoken',
+  'token',
+  'tokenhash',
+  'verifytoken',
+  'verificationtoken',
+  'resettoken',
+  'encryptedactiontoken',
+  'actionurl',
+  'secret',
+  'clientsecret',
+  'apikey',
+  'privatekey',
+  'authorization',
+  'cookie',
+  'setcookie',
+]);
+
+export function isForbiddenAuditSecretKey(rawKey: string): boolean {
+  const normalized = rawKey.toLowerCase().replace(/[\s_-]+/g, '');
+  return FORBIDDEN_NORMALIZED_SECRET_KEYS.has(normalized);
+}
 
 export interface RecordAuthAuditInput {
   eventType: string;
@@ -26,22 +64,48 @@ export interface RecordAuthAuditInput {
 export class AuthAuditService {
   constructor(private readonly authRepo: AuthRepository) {}
 
+  /**
+   * Recursively sanitizes objects, arrays, and nested combinations so password,
+   * access-token, refresh-token, CSRF-secret, raw-token, and equivalent secret-bearing
+   * keys are stripped at every nesting depth before reaching PostgreSQL.
+   */
   sanitizeMetadata(raw?: Record<string, unknown>): Record<string, unknown> {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
       return {};
     }
-    const cleaned: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(raw)) {
-      if (FORBIDDEN_SECRET_METADATA_KEY.test(key)) {
-        continue;
-      }
-      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-        cleaned[key] = this.sanitizeMetadata(value as Record<string, unknown>);
-      } else {
-        cleaned[key] = value;
-      }
+    return this.sanitizeValue(raw, 0) as Record<string, unknown>;
+  }
+
+  private sanitizeValue(value: unknown, depth: number): unknown {
+    if (depth > 16) {
+      return '[MAX_DEPTH_TRUNCATED]';
     }
-    return cleaned;
+    if (value === null || value === undefined) {
+      return null;
+    }
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      return value;
+    }
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    if (Array.isArray(value)) {
+      return value.map((elem) => this.sanitizeValue(elem, depth + 1));
+    }
+    if (typeof value === 'object') {
+      const cleaned: Record<string, unknown> = {};
+      for (const [key, nestedVal] of Object.entries(value as Record<string, unknown>)) {
+        if (isForbiddenAuditSecretKey(key)) {
+          continue;
+        }
+        if (nestedVal === undefined) {
+          continue;
+        }
+        cleaned[key] = this.sanitizeValue(nestedVal, depth + 1);
+      }
+      return cleaned;
+    }
+    return String(value);
   }
 
   async record(input: RecordAuthAuditInput): Promise<string> {

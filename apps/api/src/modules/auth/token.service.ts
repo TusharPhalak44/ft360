@@ -225,6 +225,19 @@ export class TokenService {
     appendSetCookieHeaders(res, cookies);
   }
 
+  setPreAuthCsrfCookie(res: Response, csrfToken: string): void {
+    appendSetCookieHeaders(res, [
+      serializeSetCookie(AUTH_COOKIE_NAMES.csrfToken, csrfToken, {
+        httpOnly: false,
+        secure: this.config.auth.cookieSecure,
+        sameSite: 'Lax',
+        path: '/',
+        maxAgeSeconds: 900,
+        domain: this.config.auth.cookieDomain,
+      }),
+    ]);
+  }
+
   clearSessionCookies(res: Response): void {
     const cleared = [
       serializeSetCookie(AUTH_COOKIE_NAMES.accessToken, '', {

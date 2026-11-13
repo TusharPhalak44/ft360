@@ -16,8 +16,8 @@
 | **Default Protected Branch (`main`)** | Synchronized at `de8994bff18db607d21d5f76a2e496432e1fe86c` (contains approved Phase 1 sign-off `38a13c2` + CI hardening `de8994b`) |
 | **Active Integration Branch (`development`)** | Synchronized & verified at `bb24aba1a08ba798aa4cfef1d023e6db33c07555` (following Phase 2 [PR #1](https://github.com/TusharPhalak44/ft360/pull/1) approval [`#5891968735`] by `NakshtraSulakhe` & merge commit `8746ba53f09309c00efbff4bdce1f2124c86e3ff`; `0` force-pushes) |
 | **`main` & `development` Branch Protection** | **ACTIVE ON BOTH** (`strict` required check: `Build, Zero-ORM, Migrations, Unit, Integration & E2E`; `1` required PR approval; stale review dismissal; conversation resolution required; force-push & deletion disabled) |
-| **GitHub Actions Cloud CI Runs** | • Run `#43302143641` (`main` @ `de8994b`): **`completed / success`**<br>• Run `#43315313550` (PR `#1` @ `8b331b8`): **`completed / success`**<br>• Run `#43435582940` (Post-merge `development` @ `8746ba5`): **`completed / success`** (`18/18` steps)<br>• Run `#43437622771` (Latest `development` HEAD @ `bb24aba`): **`completed / success`** (`18/18` steps) |
-| **Next Authorized Gate** | **PHASE 3 IMPLEMENTED & IN PR REVIEW** — Feature branch `feature/phase-3-authentication` verified locally (`39/39` unit, `22/22` PG18+Redis integration/security, `2/2` Playwright E2E) and submitted into `development` |
+| **GitHub Actions Cloud CI Runs** | • Run `#43302143641` (`main` @ `de8994b`): **`completed / success`**<br>• Run `#43315313550` (PR `#1` @ `8b331b8`): **`completed / success`**<br>• Run `#43435582940` (Post-merge `development` @ `8746ba5`): **`completed / success`** (`18/18` steps)<br>• Run `#43437622771` (Latest `development` HEAD @ `bb24aba`): **`completed / success`** (`18/18` steps)<br>• Run `#43449464909` (PR `#3` baseline @ `e3342f1`): **`completed / success`** (`18/18` steps) |
+| **Next Authorized Gate** | **PHASE 3 IN REVIEW (PR `#3`)** — Security remediation (`0006` + all 9 remediation controls) verified locally (`45/45` unit, `30/30` PG18+Redis integration/security/remediation, `2/2` Playwright E2E); awaiting independent approval by `NakshtraSulakhe` (do not mark `COMPLETED` until approved, merged, and post-merge CI green) |
 
 ---
 
@@ -31,11 +31,11 @@
 
 | ID | Module Name | Wave / Phase | Lead Dev | Dev Status | DB | API | UI | Unit | Integ | Sec | QA | UAT | Defects | Updated | Ver |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **M01** | Platform Super Admin | Phase 3–8 | Tushar | `CODE REVIEW (P3 AUTH)` | `QA APPROVED (0002–0005)` | `QA APPROVED (P3)` | `QA APPROVED (P3)` | `PASSED` | `PASSED` | `PASSED` | `QA APPROVED (P3)` | `PENDING` | 0 | 2026-11-13 | 0.3.1 |
+| **M01** | Platform Super Admin | Phase 3–8 | Tushar | `CODE REVIEW (P3 AUTH)` | `QA APPROVED (0002–0006)` | `QA APPROVED (P3)` | `QA APPROVED (P3)` | `PASSED` | `PASSED` | `PASSED` | `IN REVIEW (PR #3)` | `PENDING` | 0 | 2026-11-13 | 0.3.2 |
 | **M02** | Tenant Registration & Mgmt | Phase 2–4 | Tushar | `IN DEVELOPMENT` | `QA APPROVED (0003)` | `NOT STARTED` | `NOT STARTED` | `PASSED` | `PASSED` | `PASSED` | `QA APPROVED (DB)` | `PENDING` | 0 | 2026-11-13 | 0.2.1 |
-| **M03** | Authentication & User Mgmt | Phase 2–3 | Mansi | `CODE REVIEW (P3)` | `QA APPROVED (0003, 0005)` | `QA APPROVED (P3)` | `QA APPROVED (P3)` | `PASSED` | `PASSED` | `PASSED` | `QA APPROVED (P3)` | `PENDING` | 0 | 2026-11-13 | 0.3.1 |
-| **M04** | Organization Management | Phase 2–8 | Nakshatra | `IN DEVELOPMENT` | `QA APPROVED (0003)` | `QA APPROVED (ORG SWITCH)` | `QA APPROVED (ORG SWITCH)` | `PASSED` | `PASSED` | `PASSED` | `QA APPROVED (P3)` | `PENDING` | 0 | 2026-11-13 | 0.3.1 |
-| **M05** | Roles & Permissions | Phase 2–5 | Mansi | `CODE REVIEW (P3 GUARD)` | `QA APPROVED (0004–0005)` | `QA APPROVED (GUARD)` | `QA APPROVED (BOUNDARY)` | `PASSED` | `PASSED` | `PASSED` | `QA APPROVED (P3)` | `PENDING` | 0 | 2026-11-13 | 0.3.1 |
+| **M03** | Authentication & User Mgmt | Phase 2–3 | Mansi | `CODE REVIEW (P3)` | `QA APPROVED (0003, 0005–0006)` | `QA APPROVED (P3)` | `QA APPROVED (P3)` | `PASSED` | `PASSED` | `PASSED` | `IN REVIEW (PR #3)` | `PENDING` | 0 | 2026-11-13 | 0.3.2 |
+| **M04** | Organization Management | Phase 2–8 | Nakshatra | `IN DEVELOPMENT` | `QA APPROVED (0003)` | `QA APPROVED (ORG SWITCH)` | `QA APPROVED (ORG SWITCH)` | `PASSED` | `PASSED` | `PASSED` | `IN REVIEW (PR #3)` | `PENDING` | 0 | 2026-11-13 | 0.3.2 |
+| **M05** | Roles & Permissions | Phase 2–5 | Mansi | `CODE REVIEW (P3 GUARD)` | `QA APPROVED (0004–0006)` | `QA APPROVED (GUARD)` | `QA APPROVED (BOUNDARY)` | `PASSED` | `PASSED` | `PASSED` | `IN REVIEW (PR #3)` | `PENDING` | 0 | 2026-11-13 | 0.3.2 |
 | **M06** | Subscription & Billing | Phase 7 | Tushar | `DESIGN` | `DESIGN` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
 | **M07** | CRM | Wave 1 | Nakshatra | `BACKLOG` | `NOT STARTED` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
 | **M08** | Leads & Contacts | Wave 1 | Nakshatra | `BACKLOG` | `NOT STARTED` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
@@ -61,7 +61,7 @@
 | **M28** | Analytics & Reporting | Wave 5 | Tushar | `BACKLOG` | `NOT STARTED` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
 | **M29** | Jarvis AI Assistant | Wave 5 | Tushar | `BACKLOG` | `NOT STARTED` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
 | **M30** | Integrations | Wave 5 | Nakshatra | `BACKLOG` | `NOT STARTED` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
-| **M31** | Audit & Compliance | Phase 3 / 6 / Wave 5 | Mansi | `CODE REVIEW (AUTH AUDIT)` | `QA APPROVED (0005 auth_audit_logs)` | `QA APPROVED (P3)` | `QA APPROVED (P3)` | `PASSED` | `PASSED` | `PASSED` | `QA APPROVED (P3)` | `PENDING` | 0 | 2026-11-13 | 0.3.1 |
+| **M31** | Audit & Compliance | Phase 3 / 6 / Wave 5 | Mansi | `CODE REVIEW (AUTH AUDIT)` | `QA APPROVED (0005–0006)` | `QA APPROVED (P3)` | `QA APPROVED (P3)` | `PASSED` | `PASSED` | `PASSED` | `IN REVIEW (PR #3)` | `PENDING` | 0 | 2026-11-13 | 0.3.2 |
 | **M32** | Enterprise Administration | Wave 5 | Mansi | `BACKLOG` | `NOT STARTED` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
 
 ---
@@ -123,21 +123,21 @@
 - **Requirements:** Registration, email verification, Argon2id hashing, login/logout/refresh with family replay detection, multi-org membership verification & switching, Redis brute-force lockout, CSRF double-submit cookies.
 - **Assigned Developer:** Mansi (Support: Tushar DB/Token Arch, Nakshatra Auth UI)
 - **Development Status:** `CODE REVIEW (P3)`
-- **Database Status:** `QA APPROVED (0003, 0005)` (`users`, `auth_sessions`, `email_verification_tokens`, `password_reset_tokens`, narrow `fn_auth_*` routines, zero secret column `SELECT`)
-- **API Status:** `QA APPROVED (P3)` (`/api/v1/auth/*`, `JwtAuthGuard`, `CsrfProtectionGuard`, `AuthRateLimitService`, `SessionCacheService`, `AuthMailOutboxService`)
-- **Frontend Status:** `QA APPROVED (P3)` (`/register`, `/verify-email`, `/login`, `/forgot-password`, `/reset-password`, `/select-organization`, `/workspace`)
-- **Unit Test Status:** `PASSED` (`39/39`)
-- **Integration Test Status:** `PASSED` (`22/22`)
-- **Security Test Status:** `PASSED` (`SEC-P3-01..08`, Playwright `E2E-P3-01`)
-- **QA Status:** `QA APPROVED (P3)`
+- **Database Status:** `QA APPROVED (0003, 0005–0006)` (`users`, `auth_sessions`, `auth_refresh_token_history`, `auth_email_outbox`, `email_verification_tokens`, `password_reset_tokens`, hardened `fn_auth_*` routines with caller-context authorization, zero secret column `SELECT`)
+- **API Status:** `QA APPROVED (P3)` (`/api/v1/auth/*` incl. `/auth/csrf`, `JwtAuthGuard`, global `APP_GUARD` `CsrfProtectionGuard`, `AuthRateLimitService`, `SessionCacheService`, `AuthMailOutboxService` + SMTP/Webhook/Sandbox/Disabled adapters, controlled one-time `BootstrapSuperAdminService` CLI)
+- **Frontend Status:** `QA APPROVED (P3)` (`/register`, `/verify-email`, `/login`, `/forgot-password`, `/reset-password`, `/select-organization`, `/workspace` with automatic pre-auth CSRF handshake)
+- **Unit Test Status:** `PASSED` (`45/45`)
+- **Integration Test Status:** `PASSED` (`30/30`)
+- **Security Test Status:** `PASSED` (`SEC-P3-01..08`, `REM-P3-01..08`, Playwright `E2E-P3-01`)
+- **QA Status:** `IN REVIEW (PR #3)`
 - **UAT Status:** `PENDING`
 - **Outstanding Defects:** None (`0`)
-- **Pending Tasks:** Independent PR review & merge into `development`.
-- **GitHub Issue / PR References:** [PR #1](https://github.com/TusharPhalak44/ft360/pull/1) (Phase 2 merged @ `8746ba5`); Phase 3 PR (`feature/phase-3-authentication` -> `development`)
+- **Pending Tasks:** Independent PR `#3` review by `NakshtraSulakhe`, merge into `development`, and post-merge Cloud CI verification.
+- **GitHub Issue / PR References:** [PR #1](https://github.com/TusharPhalak44/ft360/pull/1) (Phase 2 merged @ `8746ba5`); [PR #3](https://github.com/TusharPhalak44/ft360/pull/3) (`feature/phase-3-authentication` -> `development`)
 - **Test Report References:** [03-phase-2-test-report.md](../testing/03-phase-2-test-report.md), [04-phase-3-test-report.md](../testing/04-phase-3-test-report.md)
 - **Approval Details:** Phase 0 Approved (`2026-11-12`); Phase 1 Approved (`2026-11-13`); Phase 2 Merged (`2026-11-13`); Phase 3 Plan Approved (`2026-11-13`)
 - **Last Updated Date:** `2026-11-13`
-- **Version Number:** `0.3.1`
+- **Version Number:** `0.3.2`
 
 ### M04 – Organization Management
 - **Module ID:** `M04`

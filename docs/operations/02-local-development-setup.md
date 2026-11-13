@@ -1,8 +1,8 @@
 # Local Development Environment Setup Guide
 
-**Last Updated:** 2026-11-12  
-**Applies To:** All Developers (Tushar, Nakshatra, Mansi)  
-**Version:** 0.1.0
+**Last Updated:** 2026-11-13  
+**Applies To:** All Developers & Platform Operators (Tushar, Nakshatra, Mansi)  
+**Version:** 0.3.1
 
 ---
 
@@ -97,3 +97,55 @@ If `docker compose up` or `docker desktop start` fails on Windows with `WslVirtu
    dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
    ```
 3. **Reboot Windows**, start Docker Desktop, verify `docker info`, and re-run `npm run infra:up`.
+
+---
+
+## 5. Transactional Authentication Email Provider & Durable Outbox Configuration
+
+Authentication verification and password-reset emails are persisted first in PostgreSQL (`public.auth_email_outbox` with HKDF `AES-256-GCM` sealed tokens, `encrypted_action_token` excluded from `ft360_app` `SELECT` grants) before dispatching secret-free `{ outboxId, correlationId }` jobs onto BullMQ (`auth-transactional-mail`). If Redis/BullMQ is temporarily unavailable, `AuthMailOutboxService.drainDueOutboxBatch()` sweeps due rows directly from PostgreSQL with bounded exponential backoff (`AUTH_MAIL_BASE_BACKOFF_SECONDS` .. `AUTH_MAIL_MAX_BACKOFF_SECONDS`, up to `AUTH_MAIL_MAX_ATTEMPTS`).
+
+### Supported `AUTH_MAIL_PROVIDER` Modes
+| `AUTH_MAIL_PROVIDER` | Permitted `NODE_ENV` | Required Environment Variables | Behavior |
+|---|---|---|---|
+| `disabled` *(default)* | Any | `AUTH_OUTBOX_ENCRYPTION_SECRET` (`>=32` chars in `production`) | Never claims `delivered: true`; retains sealed rows in `auth_email_outbox` (`MAIL_PROVIDER_NOT_CONFIGURED`) until a real provider is configured. |
+| `sandbox` | **`development` / `test` ONLY** *(startup throws in `staging`/`preview`/`production`)* | `AUTH_MAIL_PROVIDER=sandbox` | Accepts envelopes in memory for local/CI verification without external network calls and without logging raw tokens or complete action URLs. |
+| `smtp` | Any | `AUTH_MAIL_SMTP_HOST`, `AUTH_MAIL_SMTP_PORT`, `AUTH_MAIL_SMTP_SECURE`, `AUTH_MAIL_SMTP_REQUIRE_TLS`, `AUTH_MAIL_SMTP_USER`, `AUTH_MAIL_SMTP_PASSWORD`, `AUTH_MAIL_FROM_EMAIL`, `AUTH_MAIL_FROM_NAME`, `AUTH_OUTBOX_ENCRYPTION_SECRET` | Native RFC 5321 TCP/TLS + `STARTTLS` + `AUTH PLAIN` transport; records upstream `provider_message_id` and wipes `encrypted_action_token` upon `250` acceptance. |
+| `webhook` | Any | `AUTH_MAIL_WEBHOOK_URL` (**must be `https://` in `production`**), `AUTH_MAIL_WEBHOOK_BEARER_TOKEN`, `AUTH_MAIL_FROM_EMAIL`, `AUTH_MAIL_FROM_NAME`, `AUTH_OUTBOX_ENCRYPTION_SECRET` | Dispatches JSON payload with `X-Idempotency-Key` + `X-Correlation-Id` headers; retries `408`/`429`/`5xx` with bounded exponential backoff. |
+
+### Local/E2E Outbox Preview Safety (`AUTH_DEV_OUTBOX_ENABLED`)
+- Defaults to **`false`**.
+- Startup aborts immediately if `AUTH_DEV_OUTBOX_ENABLED=true` when `NODE_ENV` is anything other than `development` or `test` (`staging`, `preview`, `production` all fail closed).
+- Even when enabled locally, `GET /api/v1/auth/dev-outbox` enforces loopback client IP verification (`127.0.0.1` / `::1`) and returns `404` otherwise.
+
+---
+
+## 6. Controlled One-Time Platform Super Admin Bootstrap Procedure
+
+Normal NestJS application startup (`onApplicationBootstrap`) **never** creates, promotes, activates, marks email-verified, or overwrites the password of any database user — even if `BOOTSTRAP_SUPER_ADMIN_*` variables remain set in the environment.
+
+To provision the **first** Platform Super Admin on a brand-new environment (`0` active Super Admins in `public.users`):
+
+1. Temporarily supply bootstrap secrets for the one-time CLI invocation:
+   ```powershell
+   $env:BOOTSTRAP_SUPER_ADMIN_EMAIL = "ops-root@your-domain.example"
+   $env:BOOTSTRAP_SUPER_ADMIN_PASSWORD = "<StrongUniquePassword12+Chars!>"
+   $env:BOOTSTRAP_SUPER_ADMIN_FULL_NAME = "Platform Super Administrator"
+   npm run auth:bootstrap-super-admin
+   ```
+2. Inside PostgreSQL (`fn_auth_bootstrap_initial_super_admin` under advisory lock `360003`), provisioning is **refused (`409`)** and audited (`AUTH_SUPER_ADMIN_BOOTSTRAP_REFUSED`) if:
+   - Any `ACTIVE` Platform Super Admin already exists (`SUPER_ADMIN_ALREADY_PROVISIONED`), **or**
+   - `BOOTSTRAP_SUPER_ADMIN_EMAIL` already belongs to any existing user account (`BOOTSTRAP_EMAIL_CONFLICT`).
+3. **Mandatory Post-Bootstrap Step:** Immediately remove `BOOTSTRAP_SUPER_ADMIN_EMAIL`, `BOOTSTRAP_SUPER_ADMIN_PASSWORD`, and `BOOTSTRAP_SUPER_ADMIN_FULL_NAME` from the shell, `.env`, CI/CD variables, and container secret definitions:
+   ```powershell
+   Remove-Item Env:BOOTSTRAP_SUPER_ADMIN_EMAIL, Env:BOOTSTRAP_SUPER_ADMIN_PASSWORD, Env:BOOTSTRAP_SUPER_ADMIN_FULL_NAME -ErrorAction SilentlyContinue
+   ```
+
+---
+
+## 7. Production Cookie Configuration Requirements
+
+- When `NODE_ENV=production`:
+  - `COOKIE_SECURE` defaults to `true`; setting `COOKIE_SECURE=false` aborts application startup immediately.
+  - `AUTH_JWT_SECRET` (`>=32` chars) and `AUTH_OUTBOX_ENCRYPTION_SECRET` (`>=32` chars) are mandatory at startup.
+  - `COOKIE_DOMAIN` (optional) is strictly validated: schemes (`https://`), ports (`:443`), paths (`/`), IP literals (`127.0.0.1`, `::1`), `localhost`, and single-label TLDs (`com`, `.com`) are rejected at startup.
+  - `ft360_at` (`HttpOnly; Secure; SameSite=Lax; Path=/`), `ft360_rt` (`HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`), and `ft360_csrf` (`Secure; SameSite=Lax; Path=/`) preserve strict transport and path isolation.

@@ -12,6 +12,7 @@ import {
   AuthMailOutboxService,
   AuthTransactionalMailProcessor,
 } from './auth-mail-outbox.service';
+import { AUTH_MAIL_PROVIDER, ConfiguredAuthMailProvider } from './auth-mail-provider';
 import { AuthRateLimitService } from './auth-rate-limit.service';
 import { AuthRepository } from './auth.repository';
 import { AuthService } from './auth.service';
@@ -36,6 +37,11 @@ import { TokenService } from './token.service';
     AuthRateLimitService,
     AuthRepository,
     AuthAuditService,
+    ConfiguredAuthMailProvider,
+    {
+      provide: AUTH_MAIL_PROVIDER,
+      useExisting: ConfiguredAuthMailProvider,
+    },
     AuthMailOutboxService,
     AuthTransactionalMailProcessor,
     AuthService,
@@ -52,6 +58,8 @@ import { TokenService } from './token.service';
     AuthRateLimitService,
     AuthRepository,
     AuthAuditService,
+    AUTH_MAIL_PROVIDER,
+    ConfiguredAuthMailProvider,
     AuthMailOutboxService,
     AuthService,
     BootstrapSuperAdminService,

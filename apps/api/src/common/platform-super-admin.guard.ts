@@ -43,12 +43,12 @@ export class PlatformSuperAdminGuard implements CanActivate {
         outcome: 'DENIED',
         correlationId: req.correlationId,
         actorUserId: session.userId,
-        tenantId: session.activeTenantId,
         sessionId: session.sessionId,
         ipAddress: extractClientIp(req),
         userAgent: extractUserAgent(req),
         metadata: {
           reason: 'ACTIVE_TENANT_SESSION_CANNOT_ACCESS_PLATFORM_PLANE',
+          activeTenantId: session.activeTenantId,
           path: req.originalUrl || req.url,
         },
       });

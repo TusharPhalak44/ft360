@@ -5,13 +5,13 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  NotFoundException,
   Param,
   ParseUUIDPipe,
   Post,
   Query,
   Req,
   Res,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
@@ -23,7 +23,7 @@ import type {
   SelectOrganizationResponsePayload,
 } from '@ft360/shared-types';
 import { Public } from '../../common/auth.decorators';
-import { CsrfProtectionGuard } from '../../common/csrf-protection.guard';
+import { extractClientIp } from '../../common/http-cookie.util';
 import type { RequestWithAuthSession } from '../../common/jwt-auth.guard';
 import {
   ForgotPasswordDto,
@@ -40,6 +40,8 @@ import {
 } from './auth-mail-outbox.service';
 import { AuthService } from './auth.service';
 
+const LOOPBACK_CLIENT_IPS = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+
 @ApiTags('Authentication & Session Management')
 @Controller('auth')
 export class AuthController {
@@ -49,9 +51,25 @@ export class AuthController {
   ) {}
 
   @Public()
+  @Get('csrf')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Issue pre-authentication CSRF double-submit cookie + token for Login-CSRF defense',
+  })
+  getPreAuthCsrfToken(
+    @Res({ passthrough: true }) res: Response,
+  ): { csrfToken: string } {
+    return this.authService.issuePreAuthCsrfToken(res);
+  }
+
+  @Public()
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Self-service user registration with Argon2id hashing and email verification dispatch' })
+  @ApiOperation({
+    summary:
+      'Self-service user registration with Argon2id hashing and email verification dispatch',
+  })
   async register(
     @Body() dto: RegisterUserDto,
     @Req() req: RequestWithAuthSession,
@@ -87,7 +105,10 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Authenticate user with Argon2id, progressive lockout protection, and HttpOnly session cookies' })
+  @ApiOperation({
+    summary:
+      'Authenticate user with Argon2id, Login-CSRF & lockout protection, and HttpOnly session cookies',
+  })
   async login(
     @Body() dto: LoginDto,
     @Req() req: RequestWithAuthSession,
@@ -97,7 +118,6 @@ export class AuthController {
   }
 
   @Public()
-  @UseGuards(CsrfProtectionGuard)
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Rotate single-use opaque refresh token and detect token replay/theft' })
@@ -109,7 +129,6 @@ export class AuthController {
   }
 
   @Public()
-  @UseGuards(CsrfProtectionGuard)
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Revoke current session in PostgreSQL + Redis and clear session cookies' })
@@ -120,7 +139,6 @@ export class AuthController {
     return this.authService.logout(req, res);
   }
 
-  @UseGuards(CsrfProtectionGuard)
   @Post('logout-all')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Revoke all active device sessions for the authenticated user' })
@@ -156,7 +174,9 @@ export class AuthController {
   }
 
   @Get('me')
-  @ApiOperation({ summary: 'Retrieve authenticated user profile, active organization, and available workspaces' })
+  @ApiOperation({
+    summary: 'Retrieve authenticated user profile, active organization, and available workspaces',
+  })
   async getMe(@Req() req: RequestWithAuthSession): Promise<AuthMeResponsePayload> {
     return this.authService.getMe(req);
   }
@@ -167,7 +187,6 @@ export class AuthController {
     return this.authService.listOwnSessions(req);
   }
 
-  @UseGuards(CsrfProtectionGuard)
   @Delete('sessions/:sessionId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Revoke a specific device session belonging to the authenticated user' })
@@ -179,7 +198,6 @@ export class AuthController {
     return this.authService.revokeOwnSessionById(sessionId, req, res);
   }
 
-  @UseGuards(CsrfProtectionGuard)
   @Post('select-organization')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verify membership and bind server-side session to target organization' })
@@ -191,7 +209,6 @@ export class AuthController {
     return this.authService.selectOrganization(dto, req, res);
   }
 
-  @UseGuards(CsrfProtectionGuard)
   @Post('exit-organization')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Clear active organization context on server-side session' })
@@ -204,11 +221,19 @@ export class AuthController {
 
   @Public()
   @Get('dev-outbox')
-  @ApiOperation({ summary: 'Non-production local/E2E mail outbox preview (returns 404 in production)' })
+  @ApiOperation({
+    summary:
+      'Disabled-by-default loopback local/test mail outbox preview (404 outside development/test or non-loopback)',
+  })
   async getDevOutboxPreview(
+    @Req() req: RequestWithAuthSession,
     @Query('email') email = '',
     @Query('kind') kind: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET' = 'EMAIL_VERIFICATION',
   ): Promise<DevOutboxPreviewMessage | null> {
+    const clientIp = extractClientIp(req);
+    if (clientIp !== null && !LOOPBACK_CLIENT_IPS.has(clientIp.trim().toLowerCase())) {
+      throw new NotFoundException('Endpoint not found.');
+    }
     const safeKind = kind === 'PASSWORD_RESET' ? 'PASSWORD_RESET' : 'EMAIL_VERIFICATION';
     return this.mailOutbox.readLatestDevOutboxMessage(email, safeKind);
   }

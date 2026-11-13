@@ -1,8 +1,8 @@
 # Phase 3 – Authentication, Session Management & Authorization Boundaries Architecture
 
 **Last Updated:** 2026-11-13  
-**Status:** Approved & Implemented in Phase 3 (`migrations 0001–0005`, Backend Auth/Boundary Modules & Next.js 15 Auth UI Verified)  
-**Version:** 0.3.1  
+**Status:** Approved & Implemented in Phase 3 (`migrations 0001–0006`, Backend Auth/Boundary Modules, Security Remediation & Next.js 15 Auth UI Verified — `IN REVIEW` on PR `#3`)  
+**Version:** 0.3.2  
 **Prepared By:** Tushar (Architecture & DB), Mansi (Auth & Security QA), Nakshatra (Multi-Org UX & Tenant Boundaries)
 
 ---
@@ -263,7 +263,10 @@ All routines pin `SET search_path = pg_catalog, public, pg_temp`, `REVOKE ALL FR
 - `public.fn_auth_issue_email_verification_token(p_email CITEXT, p_token_hash CHAR(64), p_ttl_seconds INT, p_ip INET)`
 - `public.fn_auth_issue_password_reset_token(p_email CITEXT, p_token_hash CHAR(64), p_ttl_seconds INT, p_ip INET)`
 - `public.fn_auth_reset_password(p_token_hash CHAR(64), p_new_password_hash TEXT, p_ip INET)`: Atomically consumes single-use reset token, updates `users.password_hash`, and revokes all active `auth_sessions` for that `user_id`.
-- `public.fn_record_auth_audit_log(...)`: Writes append-only `auth_audit_logs` entries across pre-auth, tenant, and platform planes.
+- `public.fn_record_auth_audit_log(...)`: Writes append-only `auth_audit_logs` entries while enforcing strict tenant/unscoped/session/platform isolation (`42501` if an unscoped call supplies a non-null `p_tenant_id`, if a tenant call mismatches `app_current_tenant_id()`, if `PLATFORM_*` is invoked outside a verified Super Admin transaction, or if `p_session_id` mismatches actor/tenant) plus recursive JSONB secret rejection (`fn_jsonb_has_forbidden_secret_key` -> `23514`).
+- `public.fn_auth_enqueue_email_outbox`, `public.fn_auth_claim_email_outbox_by_id`, `public.fn_auth_claim_email_outbox_batch`, `public.fn_auth_complete_email_outbox`, `public.fn_auth_fail_email_outbox` (`0006`): Manage durable `public.auth_email_outbox` rows (`FOR UPDATE SKIP LOCKED`, bounded exponential backoff, ciphertext wiping after send, `0` direct `SELECT (encrypted_action_token)` grant).
+- `public.fn_auth_bootstrap_initial_super_admin` (`0006`): Controlled one-time Super Admin provisioning under advisory lock `360003` (`SUPER_ADMIN_ALREADY_EXISTS` / `EMAIL_CONFLICT_EXISTING_USER` refused without modifying existing users).
+- Session mutation/validation routines (`fn_auth_create_session`, `fn_auth_validate_session`, `fn_auth_bind_session_organization`, `fn_auth_revoke_session`, `fn_auth_revoke_all_user_sessions`) enforce caller-context authorization (`app_current_user_id() = target_user_id` OR verified `app_is_super_admin()`) directly inside PostgreSQL (`42501`).
 
 ### 4.3 Seeded Canonical Permissions (`public.permissions`)
 - `platform:users:read` (`PLATFORM`, `M01`), `platform:users:manage` (`PLATFORM`, `M01`), `platform:audit:read` (`PLATFORM`, `M01`)

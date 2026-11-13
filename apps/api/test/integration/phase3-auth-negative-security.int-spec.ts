@@ -9,7 +9,7 @@ import { APP_CONFIG, loadAppConfig, type AppEnvConfig } from '../../src/config/e
 import { DatabasePoolService } from '../../src/database/database-pool.service';
 import { TenantTransactionManager } from '../../src/database/tenant-transaction.manager';
 import { AuthMailOutboxService } from '../../src/modules/auth/auth-mail-outbox.service';
-import { BootstrapSuperAdminService } from '../../src/modules/auth/bootstrap-super-admin.service';
+import { PasswordHashService } from '../../src/modules/auth/password-hash.service';
 import { PlatformDirectoryRepository } from '../../src/modules/foundation-db/platform-directory.repository';
 import { RbacRepository } from '../../src/modules/foundation-db/rbac.repository';
 import { TenantMembershipRepository } from '../../src/modules/foundation-db/tenant-membership.repository';
@@ -44,7 +44,7 @@ describe('Phase 3 Mandatory Negative Authentication & Authorization Security Sui
   let dbPool: DatabasePoolService;
   let txManager: TenantTransactionManager;
   let mailOutbox: AuthMailOutboxService;
-  let bootstrapSuperAdmin: BootstrapSuperAdminService;
+  let passwordHashService: PasswordHashService;
   let platformRepo: PlatformDirectoryRepository;
   let membershipRepo: TenantMembershipRepository;
   let rbacRepo: RbacRepository;
@@ -91,6 +91,11 @@ describe('Phase 3 Mandatory Negative Authentication & Authorization Security Sui
           rateLimitLockoutSeconds: 120,
           rateLimitIpBurstMax: 200,
           devOutboxEnabled: true,
+          mail: {
+            ...config.auth.mail,
+            provider: 'sandbox',
+            pollIntervalMs: 0,
+          },
         },
       })
       .compile();
@@ -102,7 +107,7 @@ describe('Phase 3 Mandatory Negative Authentication & Authorization Security Sui
     dbPool = app.get(DatabasePoolService);
     txManager = app.get(TenantTransactionManager);
     mailOutbox = app.get(AuthMailOutboxService);
-    bootstrapSuperAdmin = app.get(BootstrapSuperAdminService);
+    passwordHashService = app.get(PasswordHashService);
     platformRepo = app.get(PlatformDirectoryRepository);
     membershipRepo = app.get(TenantMembershipRepository);
     rbacRepo = app.get(RbacRepository);
@@ -117,12 +122,18 @@ describe('Phase 3 Mandatory Negative Authentication & Authorization Security Sui
       await cleanupPool.end();
     }
 
-    const sa = await bootstrapSuperAdmin.ensureSuperAdminProvisioned({
-      email: SUPER_ADMIN_EMAIL,
-      password: SUPER_ADMIN_PW,
-      fullName: 'Security Root Super Admin',
-    });
-    superAdminUserId = sa.userId;
+    const saHash = await passwordHashService.hashPassword(SUPER_ADMIN_PW);
+    const sa = await txManager.withSystemBootstrapTransaction((tx) =>
+      platformRepo.createUser(tx, {
+        email: SUPER_ADMIN_EMAIL,
+        passwordHash: saHash,
+        fullName: 'Security Root Super Admin',
+        status: 'ACTIVE',
+        isPlatformSuperAdmin: true,
+        emailVerified: true,
+      }),
+    );
+    superAdminUserId = sa.id;
 
     await txManager.withPlatformAdminTransaction(superAdminUserId, async (tx) => {
       tenantAlpha = await platformRepo.createTenant(tx, {

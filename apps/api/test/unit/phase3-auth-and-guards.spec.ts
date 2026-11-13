@@ -10,10 +10,15 @@ import { CsrfProtectionGuard } from '../../src/common/csrf-protection.guard';
 import { JwtAuthGuard, type RequestWithAuthSession } from '../../src/common/jwt-auth.guard';
 import { PlatformSuperAdminGuard } from '../../src/common/platform-super-admin.guard';
 import { TenantAdminGuard } from '../../src/common/tenant-admin.guard';
-import { loadAppConfig, type AppEnvConfig } from '../../src/config/env.config';
+import {
+   loadAppConfig,
+  validateCookieDomain,
+  type AppEnvConfig,
+} from '../../src/config/env.config';
 import { UnauthorizedTenantMembershipError } from '../../src/database/database.types';
 import type { TenantTransactionManager } from '../../src/database/tenant-transaction.manager';
 import { AuthAuditService } from '../../src/modules/auth/auth-audit.service';
+import { redactMailLogText } from '../../src/modules/auth/auth-mail-outbox.service';
 import type { AuthRepository } from '../../src/modules/auth/auth.repository';
 import { PasswordHashService } from '../../src/modules/auth/password-hash.service';
 import type { RedisSessionCacheService } from '../../src/modules/auth/session-cache.service';
@@ -363,6 +368,275 @@ describe('Phase 3 Authentication, Argon2id, JWT/CSRF & Multi-Plane Guards Unit S
       ).rejects.toThrow(ForbiddenException);
 
       expect(recordedAudits.length).toBe(3);
+    });
+  });
+
+  describe('UT-P3-07: Dev Outbox & Mail Provider Environment Startup Hardening', () => {
+    const baseEnv = {
+      DATABASE_MIGRATOR_URL: 'postgresql://ft360_migrator:pw1@localhost:5434/ft360_dev',
+      DATABASE_APP_URL: 'postgresql://ft360_app:pw2@localhost:5434/ft360_dev',
+      AUTH_JWT_SECRET: 'unit-test-jwt-secret-key-at-least-32-characters-long!!',
+    };
+
+    it('defaults AUTH_DEV_OUTBOX_ENABLED to false and AUTH_MAIL_PROVIDER to disabled across environments', () => {
+      const devCfg = loadAppConfig({ ...baseEnv, NODE_ENV: 'development' });
+      expect(devCfg.auth.devOutboxEnabled).toBe(false);
+      expect(devCfg.auth.mail.provider).toBe('disabled');
+
+      const testCfg = loadAppConfig({ ...baseEnv, NODE_ENV: 'test' });
+      expect(testCfg.auth.devOutboxEnabled).toBe(false);
+      expect(testCfg.auth.mail.provider).toBe('disabled');
+    });
+
+    it('permits AUTH_DEV_OUTBOX_ENABLED=true and sandbox mail provider ONLY in development and test, failing startup in staging/preview/production', () => {
+      expect(
+        loadAppConfig({
+          ...baseEnv,
+          NODE_ENV: 'development',
+          AUTH_DEV_OUTBOX_ENABLED: 'true',
+          AUTH_MAIL_PROVIDER: 'sandbox',
+        }).auth.devOutboxEnabled,
+      ).toBe(true);
+
+      expect(
+        loadAppConfig({
+          ...baseEnv,
+          NODE_ENV: 'test',
+          AUTH_DEV_OUTBOX_ENABLED: 'true',
+          AUTH_MAIL_PROVIDER: 'sandbox',
+        }).auth.devOutboxEnabled,
+      ).toBe(true);
+
+      for (const nonLocalEnv of ['staging', 'preview', 'production']) {
+        expect(() =>
+          loadAppConfig({
+            ...baseEnv,
+            NODE_ENV: nonLocalEnv,
+            AUTH_DEV_OUTBOX_ENABLED: 'true',
+          }),
+        ).toThrow(/AUTH_DEV_OUTBOX_ENABLED=true is forbidden/i);
+
+        expect(() =>
+          loadAppConfig({
+            ...baseEnv,
+            NODE_ENV: nonLocalEnv,
+            AUTH_MAIL_PROVIDER: 'sandbox',
+          }),
+        ).toThrow(/AUTH_MAIL_PROVIDER="sandbox" is forbidden/i);
+      }
+
+      // Webhook provider requires https:// in production
+      expect(() =>
+        loadAppConfig({
+          ...baseEnv,
+          NODE_ENV: 'production',
+          AUTH_MAIL_PROVIDER: 'webhook',
+          AUTH_MAIL_WEBHOOK_URL: 'http://insecure-mail.internal/send',
+        }),
+      ).toThrow(/https:\/\//i);
+    });
+  });
+
+  describe('UT-P3-08: Production Cookie Security & Domain Validation', () => {
+    const prodBaseEnv = {
+      NODE_ENV: 'production',
+      DATABASE_MIGRATOR_URL: 'postgresql://ft360_migrator:pw1@localhost:5434/ft360_dev',
+      DATABASE_APP_URL: 'postgresql://ft360_app:pw2@localhost:5434/ft360_dev',
+      AUTH_JWT_SECRET: 'production-jwt-secret-key-with-high-entropy-at-least-32-chars!',
+    };
+
+    it('enforces COOKIE_SECURE=true in production and rejects explicit COOKIE_SECURE=false', () => {
+      const defaultProd = loadAppConfig(prodBaseEnv);
+      expect(defaultProd.auth.cookieSecure).toBe(true);
+
+      expect(() =>
+        loadAppConfig({
+          ...prodBaseEnv,
+          COOKIE_SECURE: 'false',
+        }),
+      ).toThrow(/COOKIE_SECURE=false is forbidden in production/i);
+    });
+
+    it('validates COOKIE_DOMAIN syntax strictly and preserves Secure, HttpOnly, SameSite, and Domain attributes', () => {
+      expect(validateCookieDomain('app.funneltrack360.com')).toBe('app.funneltrack360.com');
+      expect(validateCookieDomain('.funneltrack360.com')).toBe('.funneltrack360.com');
+
+      for (const invalidDomain of [
+        'https://app.funneltrack360.com',
+        'app.funneltrack360.com:443',
+        'app.funneltrack360.com/path',
+        'localhost',
+        '127.0.0.1',
+        '::1',
+        'com',
+        '.com',
+        'bad;domain.com',
+      ]) {
+        expect(() => validateCookieDomain(invalidDomain)).toThrow(/Invalid COOKIE_DOMAIN/i);
+      }
+
+      const prodCfg = loadAppConfig({
+        ...prodBaseEnv,
+        COOKIE_DOMAIN: '.funneltrack360.com',
+      });
+      const prodTokenService = new TokenService(prodCfg);
+      const { res, headersOut } = buildHttpContext({});
+      prodTokenService.setSessionCookies(res, {
+        accessToken: 'prod-at',
+        refreshToken: 'prod-rt',
+        csrfToken: 'prod-csrf',
+      });
+
+      const cookies = headersOut['Set-Cookie'] as string[];
+      expect(cookies[0]).toContain('Secure');
+      expect(cookies[0]).toContain('HttpOnly');
+      expect(cookies[0]).toContain('SameSite=Lax');
+      expect(cookies[0]).toContain('Domain=.funneltrack360.com');
+      expect(cookies[1]).toContain('Secure');
+      expect(cookies[1]).toContain('HttpOnly');
+      expect(cookies[1]).toContain('SameSite=Strict');
+      expect(cookies[2]).toContain('Secure');
+      expect(cookies[2]).toContain('SameSite=Lax');
+    });
+  });
+
+  describe('UT-P3-09: Recursive Audit Sanitization, Mail Log Redaction & Login-CSRF Unit Checks', () => {
+    it('recursively strips forbidden secret keys across arrays, objects, and deeply nested combinations', () => {
+      const auditService = new AuthAuditService({} as unknown as AuthRepository);
+      const input = {
+        safeTop: 'ok',
+        items: [
+          {
+            label: 'first',
+            password: 'secret-in-array-elem',
+            nestedArr: [
+              {
+                keep: 42,
+                refresh_token: 'rt-leak',
+                deep: {
+                  access_token: 'at-leak',
+                  csrfSecretHash: 'csrf-leak',
+                  raw_token: 'raw-leak',
+                  actionUrl: 'https://app.example/verify-email?token=abc',
+                  authorization: 'Bearer xyz',
+                  cookie: 'ft360_rt=xyz',
+                  preserved: 'yes',
+                },
+              },
+            ],
+          },
+          'primitive-entry',
+        ],
+      };
+
+      expect(auditService.sanitizeMetadata(input)).toEqual({
+        safeTop: 'ok',
+        items: [
+          {
+            label: 'first',
+            nestedArr: [
+              {
+                keep: 42,
+                deep: {
+                  preserved: 'yes',
+                },
+              },
+            ],
+          },
+          'primitive-entry',
+        ],
+      });
+
+      const rawSecret = '9f8e7d6c5b4a3210secretOpaqueVerifyTokenValue';
+      const redacted = redactMailLogText(
+        `Failed sending https://localhost:3000/verify-email?token=${rawSecret} raw=${rawSecret}`,
+        rawSecret,
+      );
+      expect(redacted).not.toContain(rawSecret);
+      expect(redacted).not.toContain('/verify-email?token=');
+    });
+
+    it('enforces Login-CSRF defenses on @Public() POST /api/v1/auth/login while preserving non-browser JSON clients', () => {
+      const publicReflector = {
+        getAllAndOverride: jest.fn().mockReturnValue(true),
+      } as unknown as Reflector;
+      const guard = new CsrfProtectionGuard(testConfig, publicReflector);
+
+      // 1. Origin: null -> 403
+      expect(() =>
+        guard.canActivate(
+          buildHttpContext({
+            method: 'POST',
+            url: '/api/v1/auth/login',
+            headers: { origin: 'null', 'content-type': 'application/json' },
+          }).ctx,
+        ),
+      ).toThrow(ForbiddenException);
+
+      // 2. Empty or malformed Origin / Referer -> 403
+      for (const badHeaders of [
+        { origin: '' },
+        { origin: 'not-a-valid-url' },
+        { referer: '' },
+        { referer: ':::bad-referer' },
+        { referer: 'https://evil.example/phish' },
+        { 'sec-fetch-site': 'cross-site', origin: 'http://localhost:3000' },
+        { origin: 'http://localhost:3000', 'content-type': 'application/x-www-form-urlencoded' },
+      ]) {
+        expect(() =>
+          guard.canActivate(
+            buildHttpContext({
+              method: 'POST',
+              url: '/api/v1/auth/login',
+              headers: badHeaders,
+            }).ctx,
+          ),
+        ).toThrow(ForbiddenException);
+      }
+
+      // 3. Browser UA missing Origin/Referer AND missing pre-auth CSRF token -> 403
+      expect(() =>
+        guard.canActivate(
+          buildHttpContext({
+            method: 'POST',
+            url: '/api/v1/auth/login',
+            headers: {
+              'user-agent': 'Mozilla/5.0 Chrome/135.0',
+              'content-type': 'application/json',
+            },
+          }).ctx,
+        ),
+      ).toThrow(ForbiddenException);
+
+      // 4. Browser UA with pre-auth CSRF double-submit token (even if Origin stripped by privacy proxy) -> allowed
+      expect(
+        guard.canActivate(
+          buildHttpContext({
+            method: 'POST',
+            url: '/api/v1/auth/login',
+            headers: {
+              'user-agent': 'Mozilla/5.0 Chrome/135.0',
+              'content-type': 'application/json',
+              cookie: 'ft360_csrf=preauth-token-123',
+              'x-csrf-token': 'preauth-token-123',
+            },
+          }).ctx,
+        ),
+      ).toBe(true);
+
+      // 5. Non-browser JSON API client without cookies or browser headers -> allowed
+      expect(
+        guard.canActivate(
+          buildHttpContext({
+            method: 'POST',
+            url: '/api/v1/auth/login',
+            headers: {
+              'user-agent': 'node-superagent/9.0',
+              'content-type': 'application/json',
+            },
+          }).ctx,
+        ),
+      ).toBe(true);
     });
   });
 });

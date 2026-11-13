@@ -74,7 +74,11 @@ export class JwtAuthGuard implements CanActivate {
         ? this.tokenService.sha256Hex(csrfTokenHeader.trim())
         : null;
 
-    const dbSession = await this.authRepo.validateSessionInDb(claims.sid, candidateCsrfHash);
+    const dbSession = await this.authRepo.validateSessionInDb(
+      claims.sid,
+      candidateCsrfHash,
+      claims.sub,
+    );
     if (!dbSession || dbSession.userId.toLowerCase() !== claims.sub.toLowerCase()) {
       if (transport === 'cookie') {
         this.tokenService.clearSessionCookies(res);

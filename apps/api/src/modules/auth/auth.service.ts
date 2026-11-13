@@ -58,6 +58,12 @@ export class AuthService {
     private readonly rbacRepo: RbacRepository,
   ) {}
 
+  issuePreAuthCsrfToken(res: Response): { csrfToken: string } {
+    const csrfSecret = this.tokenService.generateOpaqueSecret();
+    this.tokenService.setPreAuthCsrfCookie(res, csrfSecret.rawToken);
+    return { csrfToken: csrfSecret.rawToken };
+  }
+
   async register(
     dto: RegisterUserDto,
     req: RequestWithAuthSession,
@@ -96,6 +102,7 @@ export class AuthService {
       });
 
       await this.mailOutbox.enqueueEmailVerification({
+        userId: user.id,
         email: user.email,
         fullName: user.fullName,
         rawToken: verifySecret.rawToken,
@@ -185,6 +192,7 @@ export class AuthService {
 
     if (issued) {
       await this.mailOutbox.enqueueEmailVerification({
+        userId: issued.userId,
         email: issued.email,
         fullName: issued.fullName,
         rawToken: secret.rawToken,
@@ -455,12 +463,12 @@ export class AuthService {
         correlationId: req.correlationId,
         actorUserId: rotated.userId,
         targetUserId: rotated.userId,
-        tenantId: rotated.activeTenantId,
         sessionId: rotated.sessionId,
         ipAddress: ip,
         userAgent: ua,
         metadata: {
           familyId: rotated.familyId,
+          activeTenantId: rotated.activeTenantId,
           revokedSessionCount: rotated.revokedFamilySessionIds.length,
         },
       });
@@ -544,10 +552,12 @@ export class AuthService {
       outcome: 'SUCCESS',
       correlationId: req.correlationId,
       actorUserId: rotated.userId,
-      tenantId: rotated.activeTenantId,
       sessionId: rotated.sessionId,
       ipAddress: ip,
       userAgent: ua,
+      metadata: {
+        activeTenantId: rotated.activeTenantId,
+      },
     });
 
     return {
@@ -592,10 +602,12 @@ export class AuthService {
         outcome: 'SUCCESS',
         correlationId: req.correlationId,
         actorUserId: session.userId,
-        tenantId: session.activeTenantId ?? null,
         sessionId: session.sessionId,
         ipAddress: ip,
         userAgent: ua,
+        metadata: {
+          activeTenantId: session.activeTenantId ?? null,
+        },
       });
     } else {
       const cookies = parseRequestCookies(req.headers.cookie);
@@ -610,10 +622,12 @@ export class AuthService {
             outcome: 'SUCCESS',
             correlationId: req.correlationId,
             actorUserId: revoked.userId,
-            tenantId: revoked.activeTenantId,
             sessionId: revoked.sessionId,
             ipAddress: ip,
             userAgent: ua,
+            metadata: {
+              activeTenantId: revoked.activeTenantId,
+            },
           });
         }
       }
@@ -677,6 +691,7 @@ export class AuthService {
 
     if (issued) {
       await this.mailOutbox.enqueuePasswordReset({
+        userId: issued.userId,
         email: issued.email,
         fullName: issued.fullName,
         rawToken: resetSecret.rawToken,

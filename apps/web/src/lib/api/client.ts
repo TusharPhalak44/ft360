@@ -83,6 +83,36 @@ export function readBrowserCsrfCookie(): string | null {
 
 const MUTATING_HTTP_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
+async function ensureBrowserCsrfToken(baseUrl: string): Promise<string | null> {
+  const existing = readBrowserCsrfCookie();
+  if (existing) {
+    return existing;
+  }
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    const res = await fetch(`${baseUrl}/auth/csrf`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    });
+    if (!res.ok) {
+      return readBrowserCsrfCookie();
+    }
+    const payload = (await res.json().catch(() => null)) as
+      | ApiSuccessResponse<{ csrfToken: string }>
+      | null;
+    if (payload && payload.success && payload.data?.csrfToken) {
+      return payload.data.csrfToken;
+    }
+  } catch {
+    // Fall back to cookie / Origin check if network fails
+  }
+  return readBrowserCsrfCookie();
+}
+
 /**
  * Centralized REST API client for communicating with the authoritative NestJS backend.
  * Note: Never attaches client-spoofed `tenant_id` headers or query parameters;
@@ -92,9 +122,14 @@ export async function apiRequest<T>(
   endpointPath: string,
   init?: RequestInit & { includeCredentials?: boolean },
 ): Promise<{ data: T; correlationId: string }> {
-  const url = `${getApiBaseUrl()}/${endpointPath.replace(/^\/+/, '')}`;
+  const baseUrl = getApiBaseUrl();
+  const cleanPath = endpointPath.replace(/^\/+/, '');
+  const url = `${baseUrl}/${cleanPath}`;
   const method = (init?.method || 'GET').toUpperCase();
-  const csrfToken = MUTATING_HTTP_METHODS.has(method) ? readBrowserCsrfCookie() : null;
+  const csrfToken =
+    MUTATING_HTTP_METHODS.has(method) && cleanPath !== 'auth/csrf'
+      ? await ensureBrowserCsrfToken(baseUrl)
+      : null;
 
   const response = await fetch(url, {
     ...init,

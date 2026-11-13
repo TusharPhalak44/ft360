@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { CacheModule } from './cache/cache.module';
 import { CorrelationIdInterceptor } from './common/correlation-id.interceptor';
+import { CsrfProtectionGuard } from './common/csrf-protection.guard';
 import { GlobalExceptionFilter } from './common/global-exception.filter';
 import { JwtAuthGuard } from './common/jwt-auth.guard';
 import { UntrustedTenantInputGuard } from './common/untrusted-tenant-input.guard';
@@ -36,6 +37,10 @@ import { WorkspaceBoundaryModule } from './modules/workspace-boundary/workspace-
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: CsrfProtectionGuard,
     },
     {
       provide: APP_INTERCEPTOR,

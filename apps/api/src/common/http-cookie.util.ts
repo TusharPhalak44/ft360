@@ -42,6 +42,16 @@ export function serializeSetCookie(
   value: string,
   opts: CookieSerializeOptions,
 ): string {
+  if (!/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(name)) {
+    throw new Error(`Invalid cookie name "${name}".`);
+  }
+  if (!opts.path.startsWith('/') || /[\r\n;]/.test(opts.path)) {
+    throw new Error(`Invalid cookie Path attribute "${opts.path}".`);
+  }
+  if (opts.domain && (/[\r\n;\s:/]/.test(opts.domain) || opts.domain === 'localhost')) {
+    throw new Error(`Invalid cookie Domain attribute "${opts.domain}".`);
+  }
+
   const parts = [
     `${name}=${encodeURIComponent(value)}`,
     `Path=${opts.path}`,

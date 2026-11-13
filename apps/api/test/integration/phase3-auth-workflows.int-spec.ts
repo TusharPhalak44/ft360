@@ -10,7 +10,7 @@ import { DatabasePoolService } from '../../src/database/database-pool.service';
 import { SqlMigrationRunner } from '../../src/database/migrations/migration-runner';
 import { TenantTransactionManager } from '../../src/database/tenant-transaction.manager';
 import { AuthMailOutboxService } from '../../src/modules/auth/auth-mail-outbox.service';
-import { BootstrapSuperAdminService } from '../../src/modules/auth/bootstrap-super-admin.service';
+import { PasswordHashService } from '../../src/modules/auth/password-hash.service';
 import { PlatformDirectoryRepository } from '../../src/modules/foundation-db/platform-directory.repository';
 import { RbacRepository } from '../../src/modules/foundation-db/rbac.repository';
 import { TenantMembershipRepository } from '../../src/modules/foundation-db/tenant-membership.repository';
@@ -45,7 +45,7 @@ describe('Phase 3 Authentication, Verification, Session Rotation, Password Reset
   let dbPool: DatabasePoolService;
   let txManager: TenantTransactionManager;
   let mailOutbox: AuthMailOutboxService;
-  let bootstrapSuperAdmin: BootstrapSuperAdminService;
+  let passwordHashService: PasswordHashService;
   let platformRepo: PlatformDirectoryRepository;
   let membershipRepo: TenantMembershipRepository;
   let rbacRepo: RbacRepository;
@@ -57,15 +57,15 @@ describe('Phase 3 Authentication, Verification, Session Rotation, Password Reset
   beforeAll(async () => {
     config = loadAppConfig();
 
-    // IT-P3-01: Verify Migration 0005 rollback -> re-up cleanly
+    // IT-P3-01: Verify Migration 0006 rollback -> re-up cleanly
     const runner = new SqlMigrationRunner(config.database.migratorUrl);
     try {
       await runner.migrateUp();
       expect(await runner.rollbackLatest()).toBe(
-        '0005_authentication_sessions_tokens_and_audit',
+        '0006_phase3_auth_security_remediation',
       );
       expect(await runner.migrateUp()).toEqual([
-        '0005_authentication_sessions_tokens_and_audit',
+        '0006_phase3_auth_security_remediation',
       ]);
     } finally {
       await runner.close();
@@ -85,6 +85,11 @@ describe('Phase 3 Authentication, Verification, Session Rotation, Password Reset
           argon2TimeCost: 2,
           argon2Parallelism: 2,
           devOutboxEnabled: true,
+          mail: {
+            ...config.auth.mail,
+            provider: 'sandbox',
+            pollIntervalMs: 0,
+          },
         },
       })
       .compile();
@@ -96,7 +101,7 @@ describe('Phase 3 Authentication, Verification, Session Rotation, Password Reset
     dbPool = app.get(DatabasePoolService);
     txManager = app.get(TenantTransactionManager);
     mailOutbox = app.get(AuthMailOutboxService);
-    bootstrapSuperAdmin = app.get(BootstrapSuperAdminService);
+    passwordHashService = app.get(PasswordHashService);
     platformRepo = app.get(PlatformDirectoryRepository);
     membershipRepo = app.get(TenantMembershipRepository);
     rbacRepo = app.get(RbacRepository);
@@ -112,13 +117,19 @@ describe('Phase 3 Authentication, Verification, Session Rotation, Password Reset
       await cleanupPool.end();
     }
 
-    // Provision Super Admin + Two Tenants for multi-org tests
-    const provisioned = await bootstrapSuperAdmin.ensureSuperAdminProvisioned({
-      email: 'root@phase3-wf.test',
-      password: 'SuperAdmin#2026!Secure',
-      fullName: 'Phase 3 Root Admin',
-    });
-    superAdminUserId = provisioned.userId;
+    // Seed dedicated test Super Admin + Two Tenants for multi-org tests
+    const superAdminHash = await passwordHashService.hashPassword('SuperAdmin#2026!Secure');
+    const createdSuperAdmin = await txManager.withSystemBootstrapTransaction((tx) =>
+      platformRepo.createUser(tx, {
+        email: 'root@phase3-wf.test',
+        passwordHash: superAdminHash,
+        fullName: 'Phase 3 Root Admin',
+        status: 'ACTIVE',
+        isPlatformSuperAdmin: true,
+        emailVerified: true,
+      }),
+    );
+    superAdminUserId = createdSuperAdmin.id;
 
     await txManager.withPlatformAdminTransaction(superAdminUserId, async (tx) => {
       tenantAlpha = await platformRepo.createTenant(tx, {
@@ -154,7 +165,7 @@ describe('Phase 3 Authentication, Verification, Session Rotation, Password Reset
     }
   });
 
-  it('IT-P3-01: verifies all 13 public tables have ft360_migrator owner + FORCE RLS, composite FK on auth_sessions, and zero direct SELECT on secret columns', async () => {
+  it('IT-P3-01: verifies all 15 public tables have ft360_migrator owner + FORCE RLS, composite FK on auth_sessions, and zero direct SELECT on secret columns', async () => {
     const tablesRes = await dbPool.queryUnscoped<{
       tablename: string;
       tableowner: string;
@@ -171,6 +182,8 @@ describe('Phase 3 Authentication, Verification, Session Rotation, Password Reset
 
     expect(tablesRes.rows.map((r) => r.tablename)).toEqual([
       'auth_audit_logs',
+      'auth_email_outbox',
+      'auth_refresh_token_history',
       'auth_sessions',
       'email_verification_tokens',
       'password_reset_tokens',
@@ -196,7 +209,7 @@ describe('Phase 3 Authentication, Verification, Session Rotation, Password Reset
     );
     expect(fkRes.rows).toHaveLength(1);
 
-    // Verify ft360_app cannot directly SELECT password_hash, refresh_token_hash, csrf_secret_hash, or token_hash
+    // Verify ft360_app cannot directly SELECT password_hash, refresh_token_hash, csrf_secret_hash, token_hash, or encrypted_action_token
     await expect(
       dbPool.queryUnscoped('SELECT password_hash FROM public.users'),
     ).rejects.toMatchObject({ code: '42501' });
@@ -211,6 +224,15 @@ describe('Phase 3 Authentication, Verification, Session Rotation, Password Reset
     ).rejects.toMatchObject({ code: '42501' });
     await expect(
       dbPool.queryUnscoped('SELECT token_hash FROM public.password_reset_tokens'),
+    ).rejects.toMatchObject({ code: '42501' });
+    await expect(
+      dbPool.queryUnscoped('SELECT token_hash FROM public.auth_refresh_token_history'),
+    ).rejects.toMatchObject({ code: '42501' });
+    await expect(
+      dbPool.queryUnscoped('SELECT replaced_by_token_hash FROM public.auth_refresh_token_history'),
+    ).rejects.toMatchObject({ code: '42501' });
+    await expect(
+      dbPool.queryUnscoped('SELECT encrypted_action_token FROM public.auth_email_outbox'),
     ).rejects.toMatchObject({ code: '42501' });
   });
 

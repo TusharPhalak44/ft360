@@ -1,14 +1,14 @@
 # Database Entity-Relationship (ER) Diagrams
 
 **Last Updated:** 2026-11-13  
-**Status:** Phase 3 Implemented Baseline (`migrations 0001–0005`) + Phases 4–7 Planned Extensions  
-**Version:** 0.3.0
+**Status:** Phase 3 Implemented Baseline (`migrations 0001–0006`) + Phases 4–7 Planned Extensions  
+**Version:** 0.3.1
 
 ---
 
-## 1. Implemented Foundation ER Diagram (Phases 1–3: Migrations `0001`–`0005`)
+## 1. Implemented Foundation ER Diagram (Phases 1–3: Migrations `0001`–`0006`)
 
-All 13 application entities below (plus `schema_migrations`) are live in PostgreSQL 18, owned by `ft360_migrator`, and protected by `ENABLE` + `FORCE ROW LEVEL SECURITY` and composite foreign keys:
+All 15 application entities below (plus `schema_migrations`) are live in PostgreSQL 18, owned by `ft360_migrator`, and protected by `ENABLE` + `FORCE ROW LEVEL SECURITY` and composite foreign keys:
 
 ```mermaid
 erDiagram
@@ -174,6 +174,36 @@ erDiagram
         timestamptz created_at
     }
 
+    AUTH_REFRESH_TOKEN_HISTORY {
+        uuid id PK
+        uuid session_id FK
+        uuid family_id
+        uuid user_id FK
+        char token_hash UK "SHA-256 hex (omitted from ft360_app SELECT)"
+        char replaced_by_token_hash "SHA-256 hex (omitted from ft360_app SELECT)"
+        timestamptz rotated_at
+    }
+
+    AUTH_EMAIL_OUTBOX {
+        uuid id PK
+        varchar kind "EMAIL_VERIFICATION | PASSWORD_RESET"
+        uuid user_id FK
+        citext recipient_email
+        varchar recipient_full_name
+        text encrypted_action_token "AES-256-GCM (omitted from ft360_app SELECT)"
+        timestamptz token_expires_at
+        varchar status "PENDING | PROCESSING | FAILED_RETRYABLE | SENT | DEAD_LETTER | EXPIRED"
+        int attempt_count
+        int max_attempts
+        timestamptz next_attempt_at
+        varchar provider_name
+        varchar provider_message_id
+        uuid correlation_id
+        timestamptz sent_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
     USERS ||--o{ TENANT_MEMBERSHIPS : "joins (0..N orgs)"
     TENANTS ||--o{ TENANT_MEMBERSHIPS : "contains members"
     USERS ||--o{ TENANT_MEMBERSHIPS : "invited_by_user_id"
@@ -190,6 +220,9 @@ erDiagram
     USERS ||--o{ AUTH_AUDIT_LOGS : "actor / target"
     TENANTS ||--o{ AUTH_AUDIT_LOGS : "tenant_id (nullable)"
     AUTH_SESSIONS ||--o{ AUTH_AUDIT_LOGS : "session_id (nullable)"
+    AUTH_SESSIONS ||--o{ AUTH_REFRESH_TOKEN_HISTORY : "retains retired RT hashes"
+    USERS ||--o{ AUTH_REFRESH_TOKEN_HISTORY : "user_id"
+    USERS ||--o{ AUTH_EMAIL_OUTBOX : "transactional mail outbox"
 ```
 
 ---
