@@ -189,3 +189,102 @@ export interface ActiveUserTenantSummary {
   membershipStatus: MembershipStatus;
 }
 
+// =============================================================================
+// Phase 3 – Authentication, Session Management & Plane Boundary Contracts
+// =============================================================================
+
+export type AuthAuditOutcome = 'SUCCESS' | 'FAILURE' | 'DENIED';
+
+export interface AuthenticatedUserProfile {
+  id: string;
+  email: string;
+  fullName: string;
+  phoneE164: string | null;
+  status: UserStatus;
+  emailVerified: boolean;
+  isPlatformSuperAdmin: boolean;
+  lastLoginAt: string | null;
+}
+
+export interface AuthSessionSummary {
+  id: string;
+  familyId: string;
+  userId: string;
+  activeTenantId: string | null;
+  activeMembershipId: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  lastActiveAt: string;
+  idleExpiresAt: string;
+  expiresAt: string;
+  revokedAt: string | null;
+  revokedReason: string | null;
+  isCurrent: boolean;
+  createdAt: string;
+}
+
+export interface RegisterUserResponsePayload {
+  user: AuthenticatedUserProfile;
+  verificationRequired: true;
+}
+
+export interface LoginResponsePayload {
+  user: AuthenticatedUserProfile;
+  sessionId: string;
+  activeOrganization: ActiveUserTenantSummary | null;
+  organizations: ActiveUserTenantSummary[];
+  requiresOrganizationSelection: boolean;
+}
+
+export interface AuthMeResponsePayload {
+  user: AuthenticatedUserProfile;
+  sessionId: string;
+  activeOrganization: ActiveUserTenantSummary | null;
+  organizations: ActiveUserTenantSummary[];
+  requiresOrganizationSelection: boolean;
+  effectiveTenantPermissions: string[];
+}
+
+export interface SelectOrganizationResponsePayload {
+  sessionId: string;
+  activeOrganization: ActiveUserTenantSummary | null;
+  effectiveTenantPermissions: string[];
+}
+
+export interface AuthAuditLogEntry {
+  id: string;
+  eventType: string;
+  outcome: AuthAuditOutcome;
+  actorUserId: string | null;
+  targetUserId: string | null;
+  tenantId: string | null;
+  sessionId: string | null;
+  correlationId: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface WorkspaceBoundaryContextPayload {
+  tenantId: string;
+  membershipId: string;
+  actorUserId: string;
+  organization: ActiveUserTenantSummary;
+  effectivePermissions: string[];
+  isTenantAdmin: boolean;
+}
+
+export interface PlatformAuthOverviewPayload {
+  actorUserId: string;
+  plane: 'PLATFORM_CONTROL_PLANE';
+  metrics: {
+    totalUsers: number;
+    activeUsers: number;
+    pendingUsers: number;
+    activeTenants: number;
+    activeSessions: number;
+  };
+}
+
+

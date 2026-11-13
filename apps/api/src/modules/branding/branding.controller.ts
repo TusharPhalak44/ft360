@@ -1,8 +1,10 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import type { ProductBrandingConfig } from '@ft360/shared-types';
+import { Public } from '../../common/auth.decorators';
 import { BrandingService } from './branding.service';
 
+@Public()
 @ApiTags('Public Branding')
 @Controller('public/branding')
 export class BrandingController {

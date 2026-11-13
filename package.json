@@ -26,6 +26,7 @@
     "db:migrate": "npm run db:migrate --workspace=@ft360/api",
     "db:migrate:status": "npm run db:migrate:status --workspace=@ft360/api",
     "db:migrate:rollback": "npm run db:migrate:rollback --workspace=@ft360/api",
+    "auth:bootstrap-super-admin": "npm run auth:bootstrap-super-admin --workspace=@ft360/api",
     "infra:up": "node scripts/infra.mjs up",
     "infra:down": "node scripts/infra.mjs down",
     "infra:ps": "node scripts/infra.mjs ps"

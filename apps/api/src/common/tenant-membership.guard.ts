@@ -17,7 +17,12 @@ import { isValidUuid } from './uuid.util';
 
 export interface AuthenticatedSessionIdentity {
   userId: string;
-  activeTenantId: string;
+  activeTenantId?: string | null;
+  sessionId?: string;
+  familyId?: string;
+  activeMembershipId?: string | null;
+  isPlatformSuperAdmin?: boolean;
+  authTransport?: 'cookie' | 'bearer';
 }
 
 export interface TenantMembershipRecord {

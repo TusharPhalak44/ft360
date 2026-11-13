@@ -1,7 +1,7 @@
 # Permanent Module Development & QA Tracking Register
 
 **Last Updated:** 2026-11-13  
-**Document Version:** 0.2.1  
+**Document Version:** 0.3.0  
 **Maintained By:** Tushar (Product & Architecture), Nakshatra (Full-Stack), Mansi (Security & QA)
 
 > **Governance Rule:** Never mark any test or status column as passed/approved without actual execution evidence linked under *Test Report References*. Every module progresses strictly through the 19-stage Status Lifecycle below.
@@ -14,10 +14,10 @@
 |---|---|
 | **Remote Repository (`origin`)** | `https://github.com/TusharPhalak44/ft360.git` |
 | **Default Protected Branch (`main`)** | Synchronized at `de8994bff18db607d21d5f76a2e496432e1fe86c` (contains approved Phase 1 sign-off `38a13c2` + CI hardening `de8994b`) |
-| **Active Integration Branch (`development`)** | Synchronized at merge commit `8746ba53f09309c00efbff4bdce1f2124c86e3ff` ([PR #1](https://github.com/TusharPhalak44/ft360/pull/1) approved by `NakshtraSulakhe` [`#5891968735`] & merged via protected-branch workflow; `0` force-pushes) |
+| **Active Integration Branch (`development`)** | Synchronized & verified at `bb24aba1a08ba798aa4cfef1d023e6db33c07555` (following Phase 2 [PR #1](https://github.com/TusharPhalak44/ft360/pull/1) approval [`#5891968735`] by `NakshtraSulakhe` & merge commit `8746ba53f09309c00efbff4bdce1f2124c86e3ff`; `0` force-pushes) |
 | **`main` & `development` Branch Protection** | **ACTIVE ON BOTH** (`strict` required check: `Build, Zero-ORM, Migrations, Unit, Integration & E2E`; `1` required PR approval; stale review dismissal; conversation resolution required; force-push & deletion disabled) |
-| **GitHub Actions Cloud CI Runs** | • Run `#43302143641` (`main` @ `de8994b`): **`completed / success`**<br>• Run `#43315313550` (PR `#1` @ `8b331b8`): **`completed / success`**<br>• Run `#43435582940` (Post-merge `development` @ `8746ba5`): **`completed / success`** (`18/18` job steps) |
-| **Next Authorized Gate** | **PHASE 2 COMPLETED** — Phase 3 (Platform Identity & Auth) awaits explicit authorization from Tushar |
+| **GitHub Actions Cloud CI Runs** | • Run `#43302143641` (`main` @ `de8994b`): **`completed / success`**<br>• Run `#43315313550` (PR `#1` @ `8b331b8`): **`completed / success`**<br>• Run `#43435582940` (Post-merge `development` @ `8746ba5`): **`completed / success`** (`18/18` steps)<br>• Run `#43437622771` (Latest `development` HEAD @ `bb24aba`): **`completed / success`** (`18/18` steps)<br>• Run `#43449464909` (PR `#3` baseline @ `e3342f1`): **`completed / success`** (`18/18` steps)<br>• Run `#43468151035` (PR `#3` remediation @ `6bafd74`): **`completed / success`** (`18/18` steps) |
+| **Next Authorized Gate** | **`READY_FOR_INDEPENDENT_REVIEW` (PR `#3`)** — Automated gates passed (`45/45` unit, `30/30` PG18+Redis integration/security/remediation, `2/2` Playwright E2E, Cloud CI Run `#43468151035`); manual security review is **`NOT VERIFIED`** pending independent GitHub review by `@NakshtraSulakhe` (do not mark `COMPLETED` until approved, merged, and post-merge CI green) |
 
 ---
 
@@ -31,11 +31,11 @@
 
 | ID | Module Name | Wave / Phase | Lead Dev | Dev Status | DB | API | UI | Unit | Integ | Sec | QA | UAT | Defects | Updated | Ver |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **M01** | Platform Super Admin | Phase 3–8 | Tushar | `IN DEVELOPMENT` | `QA APPROVED (0002–0004)` | `NOT STARTED` | `NOT STARTED` | `PASSED` | `PASSED` | `PASSED` | `QA APPROVED (DB)` | `PENDING` | 0 | 2026-11-13 | 0.2.1 |
+| **M01** | Platform Super Admin | Phase 3–8 | Tushar | `CODE REVIEW (P3 AUTH)` | `QA APPROVED (0002–0006)` | `QA APPROVED (P3)` | `QA APPROVED (P3)` | `PASSED` | `PASSED` | `PASSED` | `IN REVIEW (PR #3)` | `PENDING` | 0 | 2026-11-13 | 0.3.2 |
 | **M02** | Tenant Registration & Mgmt | Phase 2–4 | Tushar | `IN DEVELOPMENT` | `QA APPROVED (0003)` | `NOT STARTED` | `NOT STARTED` | `PASSED` | `PASSED` | `PASSED` | `QA APPROVED (DB)` | `PENDING` | 0 | 2026-11-13 | 0.2.1 |
-| **M03** | Authentication & User Mgmt | Phase 2–3 | Mansi | `IN DEVELOPMENT` | `QA APPROVED (0003)` | `NOT STARTED` | `NOT STARTED` | `PASSED` | `PASSED` | `PASSED` | `QA APPROVED (DB)` | `PENDING` | 0 | 2026-11-13 | 0.2.1 |
-| **M04** | Organization Management | Phase 2–8 | Nakshatra | `IN DEVELOPMENT` | `QA APPROVED (0003)` | `NOT STARTED` | `NOT STARTED` | `PASSED` | `PASSED` | `PASSED` | `QA APPROVED (DB)` | `PENDING` | 0 | 2026-11-13 | 0.2.1 |
-| **M05** | Roles & Permissions | Phase 2–5 | Mansi | `IN DEVELOPMENT` | `QA APPROVED (0004)` | `NOT STARTED` | `NOT STARTED` | `PASSED` | `PASSED` | `PASSED` | `QA APPROVED (DB)` | `PENDING` | 0 | 2026-11-13 | 0.2.1 |
+| **M03** | Authentication & User Mgmt | Phase 2–3 | Mansi | `CODE REVIEW (P3)` | `QA APPROVED (0003, 0005–0006)` | `QA APPROVED (P3)` | `QA APPROVED (P3)` | `PASSED` | `PASSED` | `PASSED` | `IN REVIEW (PR #3)` | `PENDING` | 0 | 2026-11-13 | 0.3.2 |
+| **M04** | Organization Management | Phase 2–8 | Nakshatra | `IN DEVELOPMENT` | `QA APPROVED (0003)` | `QA APPROVED (ORG SWITCH)` | `QA APPROVED (ORG SWITCH)` | `PASSED` | `PASSED` | `PASSED` | `IN REVIEW (PR #3)` | `PENDING` | 0 | 2026-11-13 | 0.3.2 |
+| **M05** | Roles & Permissions | Phase 2–5 | Mansi | `CODE REVIEW (P3 GUARD)` | `QA APPROVED (0004–0006)` | `QA APPROVED (GUARD)` | `QA APPROVED (BOUNDARY)` | `PASSED` | `PASSED` | `PASSED` | `IN REVIEW (PR #3)` | `PENDING` | 0 | 2026-11-13 | 0.3.2 |
 | **M06** | Subscription & Billing | Phase 7 | Tushar | `DESIGN` | `DESIGN` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
 | **M07** | CRM | Wave 1 | Nakshatra | `BACKLOG` | `NOT STARTED` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
 | **M08** | Leads & Contacts | Wave 1 | Nakshatra | `BACKLOG` | `NOT STARTED` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
@@ -61,7 +61,7 @@
 | **M28** | Analytics & Reporting | Wave 5 | Tushar | `BACKLOG` | `NOT STARTED` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
 | **M29** | Jarvis AI Assistant | Wave 5 | Tushar | `BACKLOG` | `NOT STARTED` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
 | **M30** | Integrations | Wave 5 | Nakshatra | `BACKLOG` | `NOT STARTED` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
-| **M31** | Audit & Compliance | Phase 6 / Wave 5 | Mansi | `DESIGN` | `DESIGN` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
+| **M31** | Audit & Compliance | Phase 3 / 6 / Wave 5 | Mansi | `CODE REVIEW (AUTH AUDIT)` | `QA APPROVED (0005–0006)` | `QA APPROVED (P3)` | `QA APPROVED (P3)` | `PASSED` | `PASSED` | `PASSED` | `IN REVIEW (PR #3)` | `PENDING` | 0 | 2026-11-13 | 0.3.2 |
 | **M32** | Enterprise Administration | Wave 5 | Mansi | `BACKLOG` | `NOT STARTED` | `NOT STARTED` | `NOT STARTED` | `NOT RUN` | `NOT RUN` | `NOT RUN` | `PENDING` | `PENDING` | 0 | 2026-11-12 | 0.1.0 |
 
 ---
@@ -76,22 +76,22 @@
 - **Description:** Global SaaS control plane for managing tenant organizations, global product identity/white-labeling, platform staff roles, system health, and platform-wide audit logs.
 - **Requirements:** Global branding CRUD (`platform_branding_settings`), tenant directory & lifecycle controls, platform metrics, controlled break-glass support audit trail.
 - **Assigned Developer:** Tushar (Support: Nakshatra UI, Mansi QA)
-- **Development Status:** `IN DEVELOPMENT`
-- **Database Status:** `QA APPROVED (0002–0004)` (`platform_branding_settings`, `users.is_platform_super_admin`, `tenants`, `permissions`; `platform_audit_logs` scheduled for Phase 6)
-- **API Status:** `NOT STARTED`
-- **Frontend Status:** `NOT STARTED`
-- **Unit Test Status:** `PASSED`
-- **Integration Test Status:** `PASSED`
-- **Security Test Status:** `PASSED`
-- **QA Status:** `QA APPROVED (DB)`
+- **Development Status:** `CODE REVIEW (P3 AUTH BOUNDARY)`
+- **Database Status:** `QA APPROVED (0002–0005)` (`platform_branding_settings`, `users.is_platform_super_admin`, `tenants`, `permissions`, `auth_audit_logs`; `platform_audit_logs` scheduled for Phase 6)
+- **API Status:** `QA APPROVED (P3)` (`BootstrapSuperAdminService`, `PlatformSuperAdminGuard`, `/api/v1/platform/auth/overview`, `/api/v1/platform/audit/auth-logs`)
+- **Frontend Status:** `QA APPROVED (P3)` (`/platform` control-plane session & cross-plane audit console)
+- **Unit Test Status:** `PASSED` (`39/39`)
+- **Integration Test Status:** `PASSED` (`22/22`)
+- **Security Test Status:** `PASSED` (`SEC-P3-04`, `SEC-P3-07`)
+- **QA Status:** `IN REVIEW (PR #3 — READY_FOR_INDEPENDENT_REVIEW)`
 - **UAT Status:** `PENDING`
 - **Outstanding Defects:** None (`0`)
-- **Pending Tasks:** Phase 3 authorization -> Phase 6 `platform_audit_logs` -> Phase 8 `/api/v1/platform/*` endpoints & Super Admin Console UI.
-- **GitHub Issue / PR References:** [PR #1](https://github.com/TusharPhalak44/ft360/pull/1) (`APPROVED` by `NakshtraSulakhe` [`#5891968735`], merged into `development` @ `8746ba5`); Post-Merge Cloud CI Run `#43435582940` (`completed / success`)
-- **Test Report References:** [02-phase-1-test-report.md](../testing/02-phase-1-test-report.md), [03-phase-2-test-report.md](../testing/03-phase-2-test-report.md)
-- **Approval Details:** Phase 0 Approved (`2026-11-12`); Phase 1 Approved (`2026-11-13`, `38a13c2`); Phase 2 DB Approved & Merged (`2026-11-13`, `8746ba5`)
+- **Pending Tasks:** Phase 3 PR review & merge -> Phase 6 `platform_audit_logs` -> Phase 8 full Super Admin Console UI.
+- **GitHub Issue / PR References:** [PR #1](https://github.com/TusharPhalak44/ft360/pull/1) (Phase 2 merged @ `8746ba5`); Phase 3 PR (`feature/phase-3-authentication` -> `development`)
+- **Test Report References:** [02-phase-1-test-report.md](../testing/02-phase-1-test-report.md), [03-phase-2-test-report.md](../testing/03-phase-2-test-report.md), [04-phase-3-test-report.md](../testing/04-phase-3-test-report.md)
+- **Approval Details:** Phase 0 Approved (`2026-11-12`); Phase 1 Approved (`2026-11-13`); Phase 2 Merged (`2026-11-13`, `8746ba5`); Phase 3 Plan Approved (`2026-11-13`)
 - **Last Updated Date:** `2026-11-13`
-- **Version Number:** `0.2.1`
+- **Version Number:** `0.3.1`
 
 ### M02 – Tenant Registration and Management
 - **Module ID:** `M02`
@@ -119,25 +119,25 @@
 ### M03 – Authentication and User Management
 - **Module ID:** `M03`
 - **Module Name:** Authentication and User Management
-- **Description:** Global user identity decoupled from single tenants, Argon2id credentials, short-lived JWT access tokens + rotating opaque refresh tokens, password reset, and verified multi-tenant workspace switching.
-- **Requirements:** Login/logout/refresh with reuse detection, multi-org membership discovery, `switch-tenant` token exchange, account lockout/throttling, user profile management.
+- **Description:** Global user identity decoupled from single tenants, Argon2id credentials, short-lived JWT access tokens + rotating opaque refresh tokens, email verification, password reset, and verified multi-tenant workspace switching.
+- **Requirements:** Registration, email verification, Argon2id hashing, login/logout/refresh with family replay detection, multi-org membership verification & switching, Redis brute-force lockout, CSRF double-submit cookies.
 - **Assigned Developer:** Mansi (Support: Tushar DB/Token Arch, Nakshatra Auth UI)
-- **Development Status:** `IN DEVELOPMENT`
-- **Database Status:** `QA APPROVED (0003)` (`users` with column-level `password_hash` protection, `tenant_memberships`, `fn_verify_tenant_membership`, `fn_list_user_tenants`; `auth_sessions` & `password_reset_tokens` scheduled for Phase 3)
-- **API Status:** `NOT STARTED`
-- **Frontend Status:** `NOT STARTED`
-- **Unit Test Status:** `PASSED`
-- **Integration Test Status:** `PASSED`
-- **Security Test Status:** `PASSED`
-- **QA Status:** `QA APPROVED (DB)`
+- **Development Status:** `CODE REVIEW (P3)`
+- **Database Status:** `QA APPROVED (0003, 0005–0006)` (`users`, `auth_sessions`, `auth_refresh_token_history`, `auth_email_outbox`, `email_verification_tokens`, `password_reset_tokens`, hardened `fn_auth_*` routines with caller-context authorization, zero secret column `SELECT`)
+- **API Status:** `QA APPROVED (P3)` (`/api/v1/auth/*` incl. `/auth/csrf`, `JwtAuthGuard`, global `APP_GUARD` `CsrfProtectionGuard`, `AuthRateLimitService`, `SessionCacheService`, `AuthMailOutboxService` + SMTP/Webhook/Sandbox/Disabled adapters, controlled one-time `BootstrapSuperAdminService` CLI)
+- **Frontend Status:** `QA APPROVED (P3)` (`/register`, `/verify-email`, `/login`, `/forgot-password`, `/reset-password`, `/select-organization`, `/workspace` with automatic pre-auth CSRF handshake)
+- **Unit Test Status:** `PASSED` (`45/45`)
+- **Integration Test Status:** `PASSED` (`30/30`)
+- **Security Test Status:** `PASSED` (`SEC-P3-01..08`, `REM-P3-01..08`, Playwright `E2E-P3-01`)
+- **QA Status:** `IN REVIEW (PR #3)`
 - **UAT Status:** `PENDING`
 - **Outstanding Defects:** None (`0`)
-- **Pending Tasks:** Await Phase 3 authorization -> Auth sessions SQL, JWT/Refresh Guards, Login & Workspace Switcher UI.
-- **GitHub Issue / PR References:** [PR #1](https://github.com/TusharPhalak44/ft360/pull/1) (`APPROVED` by `NakshtraSulakhe` [`#5891968735`], merged @ `8746ba5`); Post-Merge Cloud CI Run `#43435582940` (`completed / success`)
-- **Test Report References:** [03-phase-2-test-report.md](../testing/03-phase-2-test-report.md)
-- **Approval Details:** Phase 0 Approved (`2026-11-12`); Phase 1 Approved (`2026-11-13`); Phase 2 DB Approved & Merged (`2026-11-13`, `8746ba5`)
+- **Pending Tasks:** Independent PR `#3` review by `NakshtraSulakhe`, merge into `development`, and post-merge Cloud CI verification.
+- **GitHub Issue / PR References:** [PR #1](https://github.com/TusharPhalak44/ft360/pull/1) (Phase 2 merged @ `8746ba5`); [PR #3](https://github.com/TusharPhalak44/ft360/pull/3) (`feature/phase-3-authentication` -> `development`)
+- **Test Report References:** [03-phase-2-test-report.md](../testing/03-phase-2-test-report.md), [04-phase-3-test-report.md](../testing/04-phase-3-test-report.md)
+- **Approval Details:** Phase 0 Approved (`2026-11-12`); Phase 1 Approved (`2026-11-13`); Phase 2 Merged (`2026-11-13`); Phase 3 Plan Approved (`2026-11-13`)
 - **Last Updated Date:** `2026-11-13`
-- **Version Number:** `0.2.1`
+- **Version Number:** `0.3.2`
 
 ### M04 – Organization Management
 - **Module ID:** `M04`
@@ -146,21 +146,21 @@
 - **Requirements:** Tenant settings CRUD, white-label theme/logo configuration, member invite/suspend/revoke workflows, multi-tenant user membership coexistence.
 - **Assigned Developer:** Nakshatra (Support: Tushar APIs, Mansi RLS QA)
 - **Development Status:** `IN DEVELOPMENT`
-- **Database Status:** `QA APPROVED (0003)` (`tenant_memberships`, composite anchor `(tenant_id, id)`, `TenantMembershipRepository`, `PostgresTenantMembershipVerifier`)
-- **API Status:** `NOT STARTED`
-- **Frontend Status:** `NOT STARTED`
+- **Database Status:** `QA APPROVED (0003, 0005)` (`tenant_memberships`, composite anchor `(tenant_id, id)` linked to `auth_sessions`, `TenantMembershipRepository`, `PostgresTenantMembershipVerifier`)
+- **API Status:** `QA APPROVED (ORG SWITCH)` (`POST /auth/select-organization`, `POST /auth/exit-organization`, `/api/v1/workspace/context`)
+- **Frontend Status:** `QA APPROVED (ORG SWITCH)` (`/select-organization` & `/workspace` switcher)
 - **Unit Test Status:** `PASSED`
 - **Integration Test Status:** `PASSED`
 - **Security Test Status:** `PASSED`
-- **QA Status:** `QA APPROVED (DB)`
+- **QA Status:** `IN REVIEW (PR #3 — READY_FOR_INDEPENDENT_REVIEW)`
 - **UAT Status:** `PENDING`
 - **Outstanding Defects:** None (`0`)
-- **Pending Tasks:** Phase 4/8 `tenant_settings` & `tenant_branding_settings` APIs and Admin Settings UI.
-- **GitHub Issue / PR References:** [PR #1](https://github.com/TusharPhalak44/ft360/pull/1) (`APPROVED` by `NakshtraSulakhe` [`#5891968735`], merged @ `8746ba5`); Post-Merge Cloud CI Run `#43435582940` (`completed / success`)
-- **Test Report References:** [03-phase-2-test-report.md](../testing/03-phase-2-test-report.md)
-- **Approval Details:** Phase 0 Approved (`2026-11-12`); Phase 1 Approved (`2026-11-13`); Phase 2 DB Approved & Merged (`2026-11-13`, `8746ba5`)
+- **Pending Tasks:** Phase 4/8 `tenant_settings`, `tenant_invitations` & `tenant_branding_settings` APIs and Admin Settings UI.
+- **GitHub Issue / PR References:** [PR #1](https://github.com/TusharPhalak44/ft360/pull/1) (merged @ `8746ba5`); Phase 3 PR (`feature/phase-3-authentication` -> `development`)
+- **Test Report References:** [03-phase-2-test-report.md](../testing/03-phase-2-test-report.md), [04-phase-3-test-report.md](../testing/04-phase-3-test-report.md)
+- **Approval Details:** Phase 0 Approved (`2026-11-12`); Phase 1 Approved (`2026-11-13`); Phase 2 Merged (`2026-11-13`); Phase 3 Plan Approved (`2026-11-13`)
 - **Last Updated Date:** `2026-11-13`
-- **Version Number:** `0.2.1`
+- **Version Number:** `0.3.1`
 
 ### M05 – Roles and Permissions
 - **Module ID:** `M05`
@@ -168,22 +168,22 @@
 - **Description:** Tenant-scoped RBAC engine combining canonical permissions (`module:resource:action`) with custom tenant roles and record-level visibility scopes (`OWN`, `TEAM`, `TENANT`).
 - **Requirements:** Seeded system roles per tenant, custom role CRUD, `user_role_assignments` bound via composite FK to `tenant_memberships`, Redis-cached permission resolution with instant invalidation.
 - **Assigned Developer:** Mansi (Support: Nakshatra Role Matrix UI, Tushar Scope Arch)
-- **Development Status:** `IN DEVELOPMENT`
-- **Database Status:** `QA APPROVED (0004)` (`permissions` + 9 canonical seeds, `roles` + system-role protection, `role_permissions`, `user_role_assignments`, 4 composite FKs, bidirectional plane triggers, `RbacRepository`)
-- **API Status:** `NOT STARTED`
-- **Frontend Status:** `NOT STARTED`
+- **Development Status:** `CODE REVIEW (P3 GUARD)`
+- **Database Status:** `QA APPROVED (0004–0005)` (`permissions` + 14 canonical seeds, `roles` + system-role protection, `role_permissions`, `user_role_assignments`, 4 composite FKs, bidirectional plane triggers, `RbacRepository`)
+- **API Status:** `QA APPROVED (GUARD)` (`TenantAdminGuard` + `@RequirePermissions()` enforced on `/api/v1/workspace/admin/*`)
+- **Frontend Status:** `QA APPROVED (BOUNDARY)` (`/workspace/admin` Tenant Admin boundary panel)
 - **Unit Test Status:** `PASSED`
 - **Integration Test Status:** `PASSED`
 - **Security Test Status:** `PASSED`
-- **QA Status:** `QA APPROVED (DB)`
+- **QA Status:** `IN REVIEW (PR #3 — READY_FOR_INDEPENDENT_REVIEW)`
 - **UAT Status:** `PENDING`
 - **Outstanding Defects:** None (`0`)
-- **Pending Tasks:** Phase 5 `PermissionsGuard`, Redis cache invalidation, and Role Matrix UI.
-- **GitHub Issue / PR References:** [PR #1](https://github.com/TusharPhalak44/ft360/pull/1) (`APPROVED` by `NakshtraSulakhe` [`#5891968735`], merged @ `8746ba5`); Post-Merge Cloud CI Run `#43435582940` (`completed / success`)
-- **Test Report References:** [03-phase-2-test-report.md](../testing/03-phase-2-test-report.md)
-- **Approval Details:** Phase 0 Approved (`2026-11-12`); Phase 1 Approved (`2026-11-13`); Phase 2 DB Approved & Merged (`2026-11-13`, `8746ba5`)
+- **Pending Tasks:** Phase 5 full Role CRUD APIs, Redis permission cache invalidation, and Role Matrix UI.
+- **GitHub Issue / PR References:** [PR #1](https://github.com/TusharPhalak44/ft360/pull/1) (merged @ `8746ba5`); Phase 3 PR (`feature/phase-3-authentication` -> `development`)
+- **Test Report References:** [03-phase-2-test-report.md](../testing/03-phase-2-test-report.md), [04-phase-3-test-report.md](../testing/04-phase-3-test-report.md)
+- **Approval Details:** Phase 0 Approved (`2026-11-12`); Phase 1 Approved (`2026-11-13`); Phase 2 Merged (`2026-11-13`); Phase 3 Plan Approved (`2026-11-13`)
 - **Last Updated Date:** `2026-11-13`
-- **Version Number:** `0.2.1`
+- **Version Number:** `0.3.1`
 
 ### M06 – Subscription and Billing
 - **Module ID:** `M06`
@@ -221,23 +221,23 @@
 ### M31 – Audit and Compliance
 - **Module ID:** `M31`
 - **Module Name:** Audit and Compliance
-- **Description:** Immutable, append-only platform and tenant audit trails (`platform_audit_logs`, `tenant_audit_logs`), correlation tracing, data retention policies, and compliance export tooling.
-- **Requirements:** Phase 6 Core: append-only PostgreSQL triggers, automatic mutation/security event capture, RLS-isolated audit log viewer. Wave 5 Advanced: cold S3 archival, GDPR/DPDP subject export & retention automation.
+- **Description:** Immutable, append-only platform and tenant audit trails (`auth_audit_logs`, `platform_audit_logs`, `tenant_audit_logs`), correlation tracing, data retention policies, and compliance export tooling.
+- **Requirements:** Phase 3 Auth Audit: append-only `auth_audit_logs` with immutability trigger, secret-key scrubber, and plane-aware `FORCE RLS`. Phase 6 Core: `platform_audit_logs`, `tenant_audit_logs`. Wave 5 Advanced: cold S3 archival & compliance exports.
 - **Assigned Developer:** Mansi (Support: Tushar Partitioning/Arch, Nakshatra Audit Viewer UI)
-- **Development Status:** `DESIGN` (Core Foundation scope)
-- **Database Status:** `DESIGN` (`platform_audit_logs`, `tenant_audit_logs` + immutability triggers)
-- **API Status:** `NOT STARTED`
-- **Frontend Status:** `NOT STARTED`
-- **Unit Test Status:** `NOT RUN`
-- **Integration Test Status:** `NOT RUN`
-- **Security Test Status:** `NOT RUN`
-- **QA Status:** `PENDING`
+- **Development Status:** `CODE REVIEW (AUTH AUDIT)`
+- **Database Status:** `QA APPROVED (0005 auth_audit_logs)` (`trigger_protect_auth_audit_immutability`, `chk_auth_audit_logs_no_secret_keys`, `fn_record_auth_audit_log`, plane-aware `FORCE RLS`)
+- **API Status:** `QA APPROVED (P3)` (`AuthAuditService`, `/api/v1/workspace/admin/auth-logs`, `/api/v1/platform/audit/auth-logs`)
+- **Frontend Status:** `QA APPROVED (P3)` (`/workspace/admin` & `/platform` audit ledger viewers)
+- **Unit Test Status:** `PASSED` (`UT-P3-06`)
+- **Integration Test Status:** `PASSED` (`IT-P3-06`)
+- **Security Test Status:** `PASSED` (`SEC-P3-07`, `SEC-P3-08`)
+- **QA Status:** `IN REVIEW (PR #3 — READY_FOR_INDEPENDENT_REVIEW)`
 - **UAT Status:** `PENDING`
 - **Outstanding Defects:** None (`0`)
-- **Pending Tasks:** Phase 2 audit tables & triggers -> Phase 6 audit interceptor & viewer API.
-- **GitHub Issue / PR References:** Repository synced (`TusharPhalak44/ft360`); awaiting Phase 2 authorization
-- **Test Report References:** [02-phase-1-test-report.md](../testing/02-phase-1-test-report.md) (Foundation RLS & guard baseline)
-- **Approval Details:** Phase 0 Approved (`2026-11-12`); Phase 1 Approved (`2026-11-13`); Phase 2 awaiting authorization
+- **Pending Tasks:** Phase 6 general domain mutation `platform_audit_logs` & `tenant_audit_logs`.
+- **GitHub Issue / PR References:** Phase 3 PR (`feature/phase-3-authentication` -> `development`)
+- **Test Report References:** [04-phase-3-test-report.md](../testing/04-phase-3-test-report.md)
+- **Approval Details:** Phase 0 Approved (`2026-11-12`); Phase 1 Approved (`2026-11-13`); Phase 3 Plan Approved (`2026-11-13`)
 - **Last Updated Date:** `2026-11-13`
-- **Version Number:** `0.1.1`
+- **Version Number:** `0.3.1`
 

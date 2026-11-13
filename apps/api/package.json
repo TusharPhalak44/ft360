@@ -13,6 +13,7 @@
     "db:migrate": "tsc -p tsconfig.build.json && node dist/database/migrations/cli.js up",
     "db:migrate:status": "tsc -p tsconfig.build.json && node dist/database/migrations/cli.js status",
     "db:migrate:rollback": "tsc -p tsconfig.build.json && node dist/database/migrations/cli.js down",
+    "auth:bootstrap-super-admin": "tsc -p tsconfig.build.json && node dist/modules/auth/bootstrap-super-admin.cli.js",
     "test:unit": "jest --config ./test/jest-unit.json",
     "test:integration": "jest --config ./test/jest-integration.json --runInBand",
     "test": "npm run test:unit && npm run test:integration"
@@ -25,6 +26,7 @@
     "@nestjs/core": "^11.0.11",
     "@nestjs/platform-express": "^11.0.11",
     "@nestjs/swagger": "^11.0.6",
+    "argon2": "^0.45.2",
     "bullmq": "^5.41.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",

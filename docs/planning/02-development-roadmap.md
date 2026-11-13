@@ -1,8 +1,8 @@
 # Development Roadmap
 
 **Last Updated:** 2026-11-13  
-**Status:** Phase 2 COMPLETED (`PR #1` Approved by `NakshtraSulakhe`, Merged into `development` @ `8746ba5`, Post-Merge Cloud CI `#43435582940` Green) — Phase 3 Awaiting Explicit Authorization  
-**Version:** 0.2.1
+**Status:** Phase 2 CLOSED & COMPLETED — **Phase 3 Implemented, Verified (`39/39` Unit, `22/22` Int/Sec, `2/2` E2E) & Submitted via PR into `development`**  
+**Version:** 0.3.1
 
 ---
 
@@ -20,8 +20,8 @@
 |---|---|---|---|---|
 | **Phase 0** | **Project Audit & Architecture** | Environment inspection, stack confirmation, ADRs, multi-tenant & RLS design, ER diagrams, 32-module matrix, roadmap, QA strategy, cost/risk report | Approved by Tushar on `2026-11-12` | **APPROVED & COMPLETED** |
 | **Phase 1** | **Project Foundation** | Monorepo (`apps/web`, `apps/api`), Docker Compose + Local PG 18/Redis 8 runtime, Git branches & rules, native SQL migration CLI, Jest + Supertest + Playwright harness, GitHub Actions CI + Zero-ORM check | All local & GitHub Cloud CI gates (`#43302143641` & `#43302143632`), migrations, RLS/Pool/BullMQ (`6/6`), unit/HTTP (`20/20`), Playwright E2E (`1/1`), & `main` branch protection verified | **APPROVED, PUSHED & CLOUD CI GREEN (`2026-11-13`)** |
-| **Phase 2** | **Database Foundation** | Core SQL migrations (`0003`–`0004`), `ft360_migrator` vs `ft360_app` (`NOBYPASSRLS`), `users`, `tenants`, `tenant_memberships`, `permissions`, `roles`, `role_permissions`, `user_role_assignments`, composite FKs, `FORCE RLS`, `PostgresTenantMembershipVerifier` | Clean-DB migration + rollback + 10-scenario negative RLS/FK/pool suite (`12/12` int, `32/32` unit, `1/1` E2E), Independent Approval (`NakshtraSulakhe`, Review `#5891968735`), PR `#1` merged @ `8746ba5`, & Post-Merge Cloud CI Run `#43435582940` green | **COMPLETED (`2026-11-13`)** |
-| **Phase 3** | **Platform Identity (M01, M03)** | Argon2id auth, JWT + rotating refresh sessions, password recovery, multi-tenant session switcher, global & tenant branding config endpoints, Platform Super Admin bootstrap | Unit + Supertest auth security suite (token replay, brute-force rate limit, branding load) | 1.5 Weeks |
+| **Phase 2** | **Database Foundation** | Core SQL migrations (`0003`–`0004`), `ft360_migrator` vs `ft360_app` (`NOBYPASSRLS`), `users`, `tenants`, `tenant_memberships`, `permissions`, `roles`, `role_permissions`, `user_role_assignments`, composite FKs, `FORCE RLS`, `PostgresTenantMembershipVerifier` | Clean-DB migration + rollback + 10-scenario negative RLS/FK/pool suite (`12/12` int, `32/32` unit, `1/1` E2E), Independent Approval (`NakshtraSulakhe`, Review `#5891968735`), PR `#1` merged @ `8746ba5`, & Post-Merge Cloud CI Runs `#43435582940` + `#43437622771` green | **CLOSED & COMPLETED (`2026-11-13`)** |
+| **Phase 3** | **Platform Identity & Auth (M01, M03, M31 Auth)** | Registration, email verification, Argon2id, login/logout, rotating opaque refresh sessions + replay detection, forgot/reset password, multi-tenant org selection, NestJS auth/CSRF/rate-limit guards, Platform Super Admin vs Tenant Admin boundaries, append-only `auth_audit_logs`, Next.js auth UI | Unit (`39/39`), PG18 + Redis integration & negative security (`22/22`), & Playwright E2E (`2/2`) suites passed; PR submitted into `development` | **IN PR REVIEW (`feature/phase-3-authentication`)** |
 | **Phase 4** | **Tenant Management (M02, M04)** | Tenant registration, onboarding wizard, member invitations, activation/suspension kill-switch, `tenant_settings`, `tenant_branding_settings` | Suspended tenant access blocked within <1s across API & cache tests | 1.5 Weeks |
 | **Phase 5** | **Roles & Permissions (M05)** | Canonical permission catalog, seeded default tenant roles, custom role CRUD, `user_role_assignments`, `@RequirePermissions()` guard + data-scope helpers (`OWN`/`TEAM`/`TENANT`) | Full RBAC matrix integration tests across roles & multi-org memberships | 1.5 Weeks |
 | **Phase 6** | **Foundation Security & QA (M31 Core)** | Append-only `platform_audit_logs` & `tenant_audit_logs`, systematic cross-tenant penetration tests (API, DB, Redis, S3, BullMQ), defect remediation | Zero High/Critical defects; signed Security Test Report by Mansi & Tushar | 1–1.5 Weeks |

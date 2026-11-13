@@ -21,6 +21,7 @@ import type {
 } from '@ft360/shared-types';
 import { AppModule } from '../../src/app.module';
 import { configureNestApp } from '../../src/bootstrap';
+import { Public } from '../../src/common/auth.decorators';
 import {
   TenantMembershipGuard,
   type RequestWithVerifiedTenant,
@@ -40,6 +41,7 @@ import { TenantMembershipRepository } from '../../src/modules/foundation-db/tena
 
 const CORR_ID = '0195f3a2-7c40-7b12-9a10-4e8d21b9f999';
 
+@Public()
 @Controller('_test-phase2-guard')
 class Phase2GuardProbeController {
   @Get('context')
@@ -116,6 +118,14 @@ describe('Phase 2 Database Foundation, Clean Migrations, Composite FKs & Mandato
     const migratorPool = new Pool({ connectionString: config.database.migratorUrl, max: 2 });
     try {
       // Ensure current state is migrated, then roll back ALL migrations down to a clean DB
+      const discoveredNames = runner.discoverMigrations().map((m) => m.name);
+      expect(discoveredNames.slice(0, 4)).toEqual([
+        '0001_foundation_rls_helpers',
+        '0002_foundation_branding_and_rls_canary',
+        '0003_users_tenants_and_memberships',
+        '0004_rbac_roles_permissions_and_assignments',
+      ]);
+
       await runner.migrateUp();
       const rolledBackOrder: string[] = [];
       while (true) {
@@ -123,12 +133,7 @@ describe('Phase 2 Database Foundation, Clean Migrations, Composite FKs & Mandato
         if (!rolled) break;
         rolledBackOrder.push(rolled);
       }
-      expect(rolledBackOrder).toEqual([
-        '0004_rbac_roles_permissions_and_assignments',
-        '0003_users_tenants_and_memberships',
-        '0002_foundation_branding_and_rls_canary',
-        '0001_foundation_rls_helpers',
-      ]);
+      expect(rolledBackOrder).toEqual([...discoveredNames].reverse());
 
       // Confirm clean database state (only schema_migrations ledger remains)
       const remainingTables = await migratorPool.query<{ tablename: string }>(
@@ -136,22 +141,16 @@ describe('Phase 2 Database Foundation, Clean Migrations, Composite FKs & Mandato
       );
       expect(remainingTables.rows.map((r) => r.tablename)).toEqual(['schema_migrations']);
 
-      // Apply all migrations 0001..0004 from clean state
+      // Apply all migrations from clean state
       const appliedFromClean = await runner.migrateUp();
-      expect(appliedFromClean).toEqual([
-        '0001_foundation_rls_helpers',
-        '0002_foundation_branding_and_rls_canary',
-        '0003_users_tenants_and_memberships',
-        '0004_rbac_roles_permissions_and_assignments',
-      ]);
+      expect(appliedFromClean).toEqual(discoveredNames);
 
-      // Verify Phase 2 rollback (0004 -> 0003) and clean reapplication
-      expect(await runner.rollbackLatest()).toBe('0004_rbac_roles_permissions_and_assignments');
-      expect(await runner.rollbackLatest()).toBe('0003_users_tenants_and_memberships');
-      expect(await runner.migrateUp()).toEqual([
-        '0003_users_tenants_and_memberships',
-        '0004_rbac_roles_permissions_and_assignments',
-      ]);
+      // Verify rollback down past Phase 2 (through 0003) and clean reapplication
+      const postPhase1Migrations = discoveredNames.slice(2);
+      for (const expectedName of [...postPhase1Migrations].reverse()) {
+        expect(await runner.rollbackLatest()).toBe(expectedName);
+      }
+      expect(await runner.migrateUp()).toEqual(postPhase1Migrations);
     } finally {
       await migratorPool.end();
       await runner.close();
@@ -446,7 +445,7 @@ describe('Phase 2 Database Foundation, Clean Migrations, Composite FKs & Mandato
        ORDER BY t.tablename ASC`,
     );
 
-    expect(catalog.rows.map((r) => r.tablename)).toEqual(expectedTables);
+    expect(catalog.rows.map((r) => r.tablename)).toEqual(expect.arrayContaining(expectedTables));
     for (const row of catalog.rows) {
       expect(row.tableowner).toBe('ft360_migrator');
       expect(row.relrowsecurity).toBe(true);

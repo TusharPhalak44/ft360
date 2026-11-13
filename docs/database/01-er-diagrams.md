@@ -1,14 +1,14 @@
 # Database Entity-Relationship (ER) Diagrams
 
 **Last Updated:** 2026-11-13  
-**Status:** Phase 2 Implemented Baseline (`migrations 0001–0004`) + Phases 3–7 Planned Extensions  
-**Version:** 0.2.0
+**Status:** Phase 3 Implemented Baseline (`migrations 0001–0006`) + Phases 4–7 Planned Extensions  
+**Version:** 0.3.1
 
 ---
 
-## 1. Implemented Foundation ER Diagram (Phases 1–2: Migrations `0001`–`0004`)
+## 1. Implemented Foundation ER Diagram (Phases 1–3: Migrations `0001`–`0006`)
 
-All entities below are live in PostgreSQL 18, owned by `ft360_migrator`, and protected by `ENABLE` + `FORCE ROW LEVEL SECURITY` and composite foreign keys:
+All 15 application entities below (plus `schema_migrations`) are live in PostgreSQL 18, owned by `ft360_migrator`, and protected by `ENABLE` + `FORCE ROW LEVEL SECURITY` and composite foreign keys:
 
 ```mermaid
 erDiagram
@@ -118,6 +118,92 @@ erDiagram
         timestamptz updated_at
     }
 
+    AUTH_SESSIONS {
+        uuid id PK
+        uuid family_id "Refresh rotation lineage"
+        uuid user_id FK
+        uuid active_tenant_id "Composite FK (active_tenant_id, active_membership_id)"
+        uuid active_membership_id "ON DELETE SET NULL"
+        char refresh_token_hash UK "SHA-256 hex (omitted from ft360_app SELECT)"
+        char previous_refresh_token_hash "Replay detection (omitted from ft360_app SELECT)"
+        char csrf_secret_hash "SHA-256 hex (omitted from ft360_app SELECT)"
+        inet ip_address
+        varchar user_agent
+        timestamptz last_active_at
+        timestamptz idle_expires_at
+        timestamptz expires_at
+        timestamptz revoked_at
+        varchar revoked_reason
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    EMAIL_VERIFICATION_TOKENS {
+        uuid id PK
+        uuid user_id FK
+        char token_hash UK "SHA-256 hex (omitted from ft360_app SELECT)"
+        timestamptz expires_at
+        timestamptz consumed_at
+        inet requested_ip
+        timestamptz created_at
+    }
+
+    PASSWORD_RESET_TOKENS {
+        uuid id PK
+        uuid user_id FK
+        char token_hash UK "SHA-256 hex (omitted from ft360_app SELECT)"
+        timestamptz expires_at
+        timestamptz consumed_at
+        inet requested_ip
+        inet consumed_ip
+        timestamptz created_at
+    }
+
+    AUTH_AUDIT_LOGS {
+        uuid id PK
+        varchar event_type
+        varchar outcome "SUCCESS | FAILURE | DENIED"
+        uuid actor_user_id FK
+        uuid target_user_id FK
+        uuid tenant_id FK
+        uuid session_id FK
+        uuid correlation_id
+        inet ip_address
+        varchar user_agent
+        jsonb metadata "chk_auth_audit_logs_no_secret_keys"
+        timestamptz created_at
+    }
+
+    AUTH_REFRESH_TOKEN_HISTORY {
+        uuid id PK
+        uuid session_id FK
+        uuid family_id
+        uuid user_id FK
+        char token_hash UK "SHA-256 hex (omitted from ft360_app SELECT)"
+        char replaced_by_token_hash "SHA-256 hex (omitted from ft360_app SELECT)"
+        timestamptz rotated_at
+    }
+
+    AUTH_EMAIL_OUTBOX {
+        uuid id PK
+        varchar kind "EMAIL_VERIFICATION | PASSWORD_RESET"
+        uuid user_id FK
+        citext recipient_email
+        varchar recipient_full_name
+        text encrypted_action_token "AES-256-GCM (omitted from ft360_app SELECT)"
+        timestamptz token_expires_at
+        varchar status "PENDING | PROCESSING | FAILED_RETRYABLE | SENT | DEAD_LETTER | EXPIRED"
+        int attempt_count
+        int max_attempts
+        timestamptz next_attempt_at
+        varchar provider_name
+        varchar provider_message_id
+        uuid correlation_id
+        timestamptz sent_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
     USERS ||--o{ TENANT_MEMBERSHIPS : "joins (0..N orgs)"
     TENANTS ||--o{ TENANT_MEMBERSHIPS : "contains members"
     USERS ||--o{ TENANT_MEMBERSHIPS : "invited_by_user_id"
@@ -127,14 +213,23 @@ erDiagram
     TENANT_MEMBERSHIPS ||--o{ USER_ROLE_ASSIGNMENTS : "(tenant_id, id) -> (tenant_id, membership_id)"
     ROLES ||--o{ USER_ROLE_ASSIGNMENTS : "(tenant_id, id) -> (tenant_id, role_id)"
     TENANT_MEMBERSHIPS ||--o{ USER_ROLE_ASSIGNMENTS : "assigned_by_membership_id"
+    USERS ||--o{ AUTH_SESSIONS : "owns sessions"
+    TENANT_MEMBERSHIPS ||--o{ AUTH_SESSIONS : "(tenant_id, id) -> (active_tenant_id, active_membership_id)"
+    USERS ||--o{ EMAIL_VERIFICATION_TOKENS : "verifies email"
+    USERS ||--o{ PASSWORD_RESET_TOKENS : "recovers password"
+    USERS ||--o{ AUTH_AUDIT_LOGS : "actor / target"
+    TENANTS ||--o{ AUTH_AUDIT_LOGS : "tenant_id (nullable)"
+    AUTH_SESSIONS ||--o{ AUTH_AUDIT_LOGS : "session_id (nullable)"
+    AUTH_SESSIONS ||--o{ AUTH_REFRESH_TOKEN_HISTORY : "retains retired RT hashes"
+    USERS ||--o{ AUTH_REFRESH_TOKEN_HISTORY : "user_id"
+    USERS ||--o{ AUTH_EMAIL_OUTBOX : "transactional mail outbox"
 ```
 
 ---
 
-## 2. Upcoming Foundation Entities (Planned for Phases 3–7)
+## 2. Upcoming Foundation Entities (Planned for Phases 4–7)
 
 The following tables attach to `users(id)`, `tenants(id)`, and `tenant_memberships(tenant_id, id)` in subsequent authorized foundation phases:
-- **Phase 3 (Authentication):** `auth_sessions`, `password_reset_tokens`
 - **Phase 4 (Tenant Onboarding & Settings):** `tenant_invitations`, `tenant_settings`, `tenant_branding_settings`
 - **Phase 6 (Audit & Compliance Core):** `platform_audit_logs`, `tenant_audit_logs`
 - **Phase 7 (Subscription Foundation):** `subscription_plans`, `tenant_subscriptions`, `tenant_usage_counters`

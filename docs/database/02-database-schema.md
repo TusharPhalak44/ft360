@@ -1,8 +1,8 @@
 # Core Database Schema & Table Catalog
 
 **Last Updated:** 2026-11-13  
-**Status:** Phase 2 Implemented Schema (`0001`–`0004`) + Phases 3–7 Roadmap Catalog  
-**Version:** 0.2.0
+**Status:** Phase 3 Implemented Schema (`0001`–`0006`) + Phases 4–7 Roadmap Catalog  
+**Version:** 0.3.1
 
 ---
 
@@ -17,20 +17,26 @@ Provisioned at database initialization (`docker/postgres/init/01-init-roles.sh`,
 
 ---
 
-## 2. Implemented Tables (`migrations 0001–0004`)
+## 2. Implemented Tables (`migrations 0001–0006`)
 
 | Table Name | Migration | Scope Plane | Primary Key | `tenant_id`? | `ENABLE` + `FORCE RLS` | `ft360_app` Grants |
 |---|---|---|---|---|---|---|
 | `schema_migrations` | Runner | Infrastructure | `version VARCHAR(64)` | No | No (`ft360_migrator` owned) | `SELECT` only |
 | `platform_branding_settings` | `0002` | Platform | `singleton_key BOOLEAN` | No | **Yes (`FORCE`)** | `SELECT, INSERT, UPDATE` |
 | `rls_isolation_canary` | `0002` | Tenant Canary | `id UUID DEFAULT uuidv7()` | **Yes (`NOT NULL`)** | **Yes (`FORCE`)** | `SELECT, INSERT, UPDATE, DELETE` |
-| `users` | `0003` | Platform Identity | `id UUID DEFAULT uuidv7()` | No | **Yes (`FORCE`)** | `SELECT, INSERT, UPDATE` |
+| `users` | `0003` | Platform Identity | `id UUID DEFAULT uuidv7()` | No | **Yes (`FORCE`)** | Column `SELECT` *(no `password_hash`)*, `INSERT`, `UPDATE` |
 | `tenants` | `0003` | Platform / Root Org | `id UUID DEFAULT uuidv7()` | Root (`id`) | **Yes (`FORCE`)** | `SELECT, INSERT, UPDATE` |
 | `tenant_memberships` | `0003` | Tenant Bridge | `id UUID DEFAULT uuidv7()` | **Yes (`NOT NULL`)** | **Yes (`FORCE`)** | `SELECT, INSERT, UPDATE, DELETE` |
 | `permissions` | `0004` | Platform Catalog | `id UUID DEFAULT uuidv7()` | No | **Yes (`FORCE`)** | `SELECT, INSERT, UPDATE` |
 | `roles` | `0004` | Tenant RBAC | `id UUID DEFAULT uuidv7()` | **Yes (`NOT NULL`)** | **Yes (`FORCE`)** | `SELECT, INSERT, UPDATE, DELETE` |
 | `role_permissions` | `0004` | Tenant RBAC | `id UUID DEFAULT uuidv7()` | **Yes (`NOT NULL`)** | **Yes (`FORCE`)** | `SELECT, INSERT, UPDATE, DELETE` |
 | `user_role_assignments` | `0004` | Tenant RBAC | `id UUID DEFAULT uuidv7()` | **Yes (`NOT NULL`)** | **Yes (`FORCE`)** | `SELECT, INSERT, UPDATE, DELETE` |
+| `auth_sessions` | `0005` | Auth Session Ledger | `id UUID DEFAULT uuidv7()` | Nullable `active_tenant_id` | **Yes (`FORCE`)** | Column `SELECT` *(no refresh/csrf hashes)*, Column `UPDATE` *(revocation only)* |
+| `email_verification_tokens` | `0005` | Auth Verification | `id UUID DEFAULT uuidv7()` | No | **Yes (`FORCE`)** | Column `SELECT` *(no `token_hash`, Super Admin only)* |
+| `password_reset_tokens` | `0005` | Auth Recovery | `id UUID DEFAULT uuidv7()` | No | **Yes (`FORCE`)** | Column `SELECT` *(no `token_hash`, Super Admin only)* |
+| `auth_audit_logs` | `0005` / `0006` | Append-Only Security Audit | `id UUID DEFAULT uuidv7()` | Nullable `tenant_id` | **Yes (`FORCE`)** | `SELECT, INSERT` *(zero `UPDATE`/`DELETE`; recursive `chk_auth_audit_logs_no_secret_keys`)* |
+| `auth_refresh_token_history` | `0006` | Auth Replay Lineage | `id UUID DEFAULT uuidv7()` | No | **Yes (`FORCE`)** | Column `SELECT` *(no `token_hash` / `replaced_by_token_hash`; Super Admin only)* |
+| `auth_email_outbox` | `0006` | Durable Auth Mail Outbox | `id UUID DEFAULT uuidv7()` | No | **Yes (`FORCE`)** | Column `SELECT` *(no `encrypted_action_token`; Super Admin only)* |
 
 ---
 
@@ -47,8 +53,11 @@ Provisioned at database initialization (`docker/postgres/init/01-init-roles.sh`,
    - `user_role_assignments.fk_ura_tenant_membership`: `FOREIGN KEY (tenant_id, membership_id) REFERENCES tenant_memberships(tenant_id, id) ON DELETE CASCADE`.
    - `user_role_assignments.fk_ura_tenant_role`: `FOREIGN KEY (tenant_id, role_id) REFERENCES roles(tenant_id, id) ON DELETE CASCADE`.
    - `user_role_assignments.fk_ura_assigned_by_membership`: `FOREIGN KEY (tenant_id, assigned_by_membership_id) REFERENCES tenant_memberships(tenant_id, id) ON DELETE SET NULL (assigned_by_membership_id)`.
+   - `auth_sessions.fk_auth_sessions_active_membership`: `FOREIGN KEY (active_tenant_id, active_membership_id) REFERENCES tenant_memberships(tenant_id, id) ON DELETE SET NULL` paired with `chk_auth_sessions_tenant_member_pair` ensuring `active_tenant_id` and `active_membership_id` are either both `NULL` or both bound to a verified membership in that exact tenant.
 4. **Database Security & Timestamp Triggers:**
-   - `trigger_set_updated_at()` on `users`, `tenants`, `tenant_memberships`, `permissions`, `roles`, `role_permissions`, `user_role_assignments`, and `platform_branding_settings`.
+   - `trigger_set_updated_at()` on `users`, `tenants`, `tenant_memberships`, `permissions`, `roles`, `role_permissions`, `user_role_assignments`, `auth_sessions`, and `platform_branding_settings`.
    - `trigger_protect_user_privileged_fields()` blocks non-Super-Admin `ft360_app` mutations to `users.is_platform_super_admin`, `users.status`, and `users.email` (`42501`).
    - `trigger_protect_tenant_lifecycle()` blocks non-Super-Admin `ft360_app` mutations to `tenants.status`, `tenants.slug`, `tenants.activated_at`, and `tenants.suspended_at` (`42501`).
    - `trigger_enforce_tenant_permission_scope()` prevents granting `scope_plane = 'PLATFORM'` permissions to any tenant role (`42501`).
+   - `trigger_protect_auth_session_immutability()` prevents mutating `auth_sessions.id`, `family_id`, `user_id`, or `created_at` (`42501`).
+   - `trigger_protect_auth_audit_immutability()` enforces strict append-only immutability on `auth_audit_logs` (`42501` on any runtime `UPDATE` or `DELETE`, including under Platform Super Admin transactions) paired with `chk_auth_audit_logs_no_secret_keys`.

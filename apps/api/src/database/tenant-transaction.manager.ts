@@ -198,6 +198,67 @@ export class TenantTransactionManager {
     return this.runSuperAdminScopedTransaction('', work);
   }
 
+  /**
+   * Authenticated user-plane transaction wrapper (pre-tenant / user-self operations
+   * such as inspecting own profile or active device sessions).
+   * Sets `app.current_user_id` locally while keeping `app.current_tenant_id = ''`
+   * and `app.is_super_admin = 'false'`.
+   */
+  async withAuthenticatedUserTransaction<T>(
+    actorUserId: string,
+    work: (tx: QueryExecutor) => Promise<T>,
+  ): Promise<T> {
+    if (!isValidUuid(actorUserId)) {
+      throw new InvalidTenantContextError(
+        'AuthenticatedUserTransaction rejected execution: actorUserId must be a valid canonical UUID.',
+      );
+    }
+
+    const normalizedUserId = actorUserId.trim().toLowerCase();
+    const client = await this.dbPool.connectClient();
+    let inTransaction = false;
+    let destroyClient = false;
+
+    try {
+      await this.sanitizeSessionVariables(client);
+      await client.query('BEGIN');
+      inTransaction = true;
+
+      await client.query(
+        `SELECT
+           set_config('app.current_tenant_id', '', true),
+           set_config('app.current_user_id', $1, true),
+           set_config('app.is_super_admin', 'false', true)`,
+        [normalizedUserId],
+      );
+
+      const safeExecutor = this.createSafeExecutor(client);
+      const result = await work(safeExecutor);
+
+      await client.query('COMMIT');
+      inTransaction = false;
+      return result;
+    } catch (error) {
+      if (inTransaction) {
+        try {
+          await client.query('ROLLBACK');
+        } catch {
+          destroyClient = true;
+        }
+      }
+      throw error;
+    } finally {
+      if (!destroyClient) {
+        try {
+          await this.sanitizeSessionVariables(client);
+        } catch {
+          destroyClient = true;
+        }
+      }
+      client.release(destroyClient);
+    }
+  }
+
   private async runSuperAdminScopedTransaction<T>(
     normalizedActorId: string,
     work: (tx: QueryExecutor) => Promise<T>,
