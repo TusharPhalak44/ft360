@@ -11,8 +11,8 @@ export function configureNestApp(app: INestApplication): AppEnvConfig {
     origin: config.corsAllowedOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Correlation-Id'],
-    exposedHeaders: ['X-Correlation-Id'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Correlation-Id', 'X-CSRF-Token'],
+    exposedHeaders: ['X-Correlation-Id', 'Retry-After'],
   });
 
   app.useGlobalPipes(

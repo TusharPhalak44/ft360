@@ -113,6 +113,7 @@ describe('NestJS HTTP Pipeline, Swagger OpenAPI, Error Envelopes & Membership Gu
         tenantId: TENANT_ALPHA,
         status: 'ACTIVE',
         tenantStatus: 'ACTIVE',
+        userStatus: 'ACTIVE',
       },
       {
         membershipId: '0195f3a2-7c40-7b12-9a10-4e8d21b9eeee',
@@ -120,6 +121,7 @@ describe('NestJS HTTP Pipeline, Swagger OpenAPI, Error Envelopes & Membership Gu
         tenantId: TENANT_SUSPENDED,
         status: 'ACTIVE',
         tenantStatus: 'SUSPENDED',
+        userStatus: 'ACTIVE',
       },
     ];
 

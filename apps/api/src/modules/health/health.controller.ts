@@ -1,8 +1,10 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiServiceUnavailableResponse, ApiTags } from '@nestjs/swagger';
 import type { SystemHealthStatus } from '@ft360/shared-types';
+import { Public } from '../../common/auth.decorators';
 import { HealthService } from './health.service';
 
+@Public()
 @ApiTags('Health & Readiness')
 @Controller('health')
 export class HealthController {

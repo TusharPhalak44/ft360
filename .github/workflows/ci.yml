@@ -56,6 +56,8 @@ jobs:
       REDIS_HOST: 127.0.0.1
       REDIS_PORT: 6379
       REDIS_PASSWORD: ''
+      AUTH_DEV_OUTBOX_ENABLED: 'true'
+      AUTH_MAIL_PROVIDER: 'sandbox'
       NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:4000/api/v1
       PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
 
