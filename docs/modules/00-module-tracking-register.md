@@ -16,8 +16,8 @@
 | **Default Protected Branch (`main`)** | Synchronized at `de8994bff18db607d21d5f76a2e496432e1fe86c` (contains approved Phase 1 sign-off `38a13c2` + CI hardening `de8994b`) |
 | **Active Integration Branch (`development`)** | Synchronized & verified at `bb24aba1a08ba798aa4cfef1d023e6db33c07555` (following Phase 2 [PR #1](https://github.com/TusharPhalak44/ft360/pull/1) approval [`#5891968735`] by `NakshtraSulakhe` & merge commit `8746ba53f09309c00efbff4bdce1f2124c86e3ff`; `0` force-pushes) |
 | **`main` & `development` Branch Protection** | **ACTIVE ON BOTH** (`strict` required check: `Build, Zero-ORM, Migrations, Unit, Integration & E2E`; `1` required PR approval; stale review dismissal; conversation resolution required; force-push & deletion disabled) |
-| **GitHub Actions Cloud CI Runs** | • Run `#43302143641` (`main` @ `de8994b`): **`completed / success`**<br>• Run `#43315313550` (PR `#1` @ `8b331b8`): **`completed / success`**<br>• Run `#43435582940` (Post-merge `development` @ `8746ba5`): **`completed / success`** (`18/18` steps)<br>• Run `#43437622771` (Latest `development` HEAD @ `bb24aba`): **`completed / success`** (`18/18` steps)<br>• Run `#43449464909` (PR `#3` baseline @ `e3342f1`): **`completed / success`** (`18/18` steps) |
-| **Next Authorized Gate** | **PHASE 3 IN REVIEW (PR `#3`)** — Security remediation (`0006` + all 9 remediation controls) verified locally (`45/45` unit, `30/30` PG18+Redis integration/security/remediation, `2/2` Playwright E2E); awaiting independent approval by `NakshtraSulakhe` (do not mark `COMPLETED` until approved, merged, and post-merge CI green) |
+| **GitHub Actions Cloud CI Runs** | • Run `#43302143641` (`main` @ `de8994b`): **`completed / success`**<br>• Run `#43315313550` (PR `#1` @ `8b331b8`): **`completed / success`**<br>• Run `#43435582940` (Post-merge `development` @ `8746ba5`): **`completed / success`** (`18/18` steps)<br>• Run `#43437622771` (Latest `development` HEAD @ `bb24aba`): **`completed / success`** (`18/18` steps)<br>• Run `#43449464909` (PR `#3` baseline @ `e3342f1`): **`completed / success`** (`18/18` steps)<br>• Run `#43468151035` (PR `#3` remediation @ `6bafd74`): **`completed / success`** (`18/18` steps) |
+| **Next Authorized Gate** | **`READY_FOR_INDEPENDENT_REVIEW` (PR `#3`)** — Automated gates passed (`45/45` unit, `30/30` PG18+Redis integration/security/remediation, `2/2` Playwright E2E, Cloud CI Run `#43468151035`); manual security review is **`NOT VERIFIED`** pending independent GitHub review by `@NakshtraSulakhe` (do not mark `COMPLETED` until approved, merged, and post-merge CI green) |
 
 ---
 
@@ -83,7 +83,7 @@
 - **Unit Test Status:** `PASSED` (`39/39`)
 - **Integration Test Status:** `PASSED` (`22/22`)
 - **Security Test Status:** `PASSED` (`SEC-P3-04`, `SEC-P3-07`)
-- **QA Status:** `QA APPROVED (P3)`
+- **QA Status:** `IN REVIEW (PR #3 — READY_FOR_INDEPENDENT_REVIEW)`
 - **UAT Status:** `PENDING`
 - **Outstanding Defects:** None (`0`)
 - **Pending Tasks:** Phase 3 PR review & merge -> Phase 6 `platform_audit_logs` -> Phase 8 full Super Admin Console UI.
@@ -152,7 +152,7 @@
 - **Unit Test Status:** `PASSED`
 - **Integration Test Status:** `PASSED`
 - **Security Test Status:** `PASSED`
-- **QA Status:** `QA APPROVED (P3)`
+- **QA Status:** `IN REVIEW (PR #3 — READY_FOR_INDEPENDENT_REVIEW)`
 - **UAT Status:** `PENDING`
 - **Outstanding Defects:** None (`0`)
 - **Pending Tasks:** Phase 4/8 `tenant_settings`, `tenant_invitations` & `tenant_branding_settings` APIs and Admin Settings UI.
@@ -175,7 +175,7 @@
 - **Unit Test Status:** `PASSED`
 - **Integration Test Status:** `PASSED`
 - **Security Test Status:** `PASSED`
-- **QA Status:** `QA APPROVED (P3)`
+- **QA Status:** `IN REVIEW (PR #3 — READY_FOR_INDEPENDENT_REVIEW)`
 - **UAT Status:** `PENDING`
 - **Outstanding Defects:** None (`0`)
 - **Pending Tasks:** Phase 5 full Role CRUD APIs, Redis permission cache invalidation, and Role Matrix UI.
@@ -231,7 +231,7 @@
 - **Unit Test Status:** `PASSED` (`UT-P3-06`)
 - **Integration Test Status:** `PASSED` (`IT-P3-06`)
 - **Security Test Status:** `PASSED` (`SEC-P3-07`, `SEC-P3-08`)
-- **QA Status:** `QA APPROVED (P3)`
+- **QA Status:** `IN REVIEW (PR #3 — READY_FOR_INDEPENDENT_REVIEW)`
 - **UAT Status:** `PENDING`
 - **Outstanding Defects:** None (`0`)
 - **Pending Tasks:** Phase 6 general domain mutation `platform_audit_logs` & `tenant_audit_logs`.

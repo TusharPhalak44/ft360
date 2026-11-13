@@ -45,3 +45,7 @@
 ### 6. Operations & Continuity (`/docs/operations/`)
 - [01 – Backup, Disaster Recovery & Environment Operations](file:///d:/FT360/docs/operations/01-backup-recovery-and-environments.md)
 - [02 – Local Development Environment Setup Guide](file:///d:/FT360/docs/operations/02-local-development-setup.md)
+
+### 7. Independent Security & Code Reviews (`/docs/reviews/`)
+- [Phase 3 Independent Review Checklist (`NOT VERIFIED` — Assigned: `@NakshtraSulakhe`)](file:///d:/FT360/docs/reviews/phase-3-independent-review-checklist.md)
+- [Phase 3 Independent Review Handoff Summary (`READY_FOR_INDEPENDENT_REVIEW`)](file:///d:/FT360/docs/reviews/phase-3-independent-review-summary.md)
