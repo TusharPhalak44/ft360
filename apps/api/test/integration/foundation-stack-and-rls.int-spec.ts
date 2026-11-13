@@ -41,10 +41,11 @@ describe('Phase 1 Live Infrastructure, PostgreSQL 18 RLS, Pool & BullMQ Suite', 
     const runner = new SqlMigrationRunner(config.database.migratorUrl);
     try {
       await runner.migrateUp();
+      const latestMigrationName = runner.discoverMigrations().at(-1)!.name;
       const rolledBack = await runner.rollbackLatest();
-      expect(rolledBack).toBe('0002_foundation_branding_and_rls_canary');
+      expect(rolledBack).toBe(latestMigrationName);
       const reApplied = await runner.migrateUp();
-      expect(reApplied).toContain('0002_foundation_branding_and_rls_canary');
+      expect(reApplied).toContain(latestMigrationName);
     } finally {
       await runner.close();
     }

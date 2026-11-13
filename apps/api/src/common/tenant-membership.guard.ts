@@ -6,7 +6,12 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import type { VerifiedTenantContext } from '@ft360/shared-types';
+import type {
+  MembershipStatus,
+  TenantStatus,
+  UserStatus,
+  VerifiedTenantContext,
+} from '@ft360/shared-types';
 import type { RequestWithCorrelation } from './correlation-id.interceptor';
 import { isValidUuid } from './uuid.util';
 
@@ -19,8 +24,9 @@ export interface TenantMembershipRecord {
   membershipId: string;
   tenantId: string;
   userId: string;
-  status: 'ACTIVE' | 'INVITED' | 'SUSPENDED' | 'REVOKED';
-  tenantStatus: 'ACTIVE' | 'TRIAL' | 'SUSPENDED' | 'CANCELLED';
+  status: MembershipStatus;
+  tenantStatus: TenantStatus;
+  userStatus: UserStatus;
 }
 
 export interface TenantMembershipVerifier {
@@ -65,6 +71,23 @@ export class TenantMembershipGuard implements CanActivate {
       throw new ForbiddenException({
         code: 'TENANT_MEMBERSHIP_DENIED',
         message: 'Access denied: user is not a member of the target organization.',
+      });
+    }
+
+    if (
+      membership.userId.trim().toLowerCase() !== userId ||
+      membership.tenantId.trim().toLowerCase() !== tenantId
+    ) {
+      throw new ForbiddenException({
+        code: 'TENANT_MEMBERSHIP_DENIED',
+        message: 'Access denied: membership record does not match authenticated context.',
+      });
+    }
+
+    if (membership.userStatus !== 'ACTIVE') {
+      throw new ForbiddenException({
+        code: 'USER_ACCOUNT_INACTIVE',
+        message: `Access denied: user account status is ${membership.userStatus ?? 'UNKNOWN'}.`,
       });
     }
 

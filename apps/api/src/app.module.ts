@@ -8,6 +8,7 @@ import { AppConfigModule } from './config/app-config.module';
 import { DatabaseModule } from './database/database.module';
 import { QueueFoundationModule } from './jobs/queue-foundation.module';
 import { BrandingModule } from './modules/branding/branding.module';
+import { FoundationDbModule } from './modules/foundation-db/foundation-db.module';
 import { HealthModule } from './modules/health/health.module';
 
 @Module({
@@ -16,6 +17,7 @@ import { HealthModule } from './modules/health/health.module';
     DatabaseModule,
     CacheModule,
     QueueFoundationModule,
+    FoundationDbModule,
     BrandingModule,
     HealthModule,
   ],
