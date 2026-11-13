@@ -1,8 +1,8 @@
 # Project Documentation Index
 
 **Product Codename:** FunnelTrack360 *(Configurable via Platform & Tenant Branding Settings)*  
-**Current Phase:** Phase 3 Implemented & Verified on `feature/phase-3-authentication` — **Submitted via Pull Request into `development` for Review**  
-**Last Updated:** 2026-11-13
+**Current Phase:** Phase 3 Merged to `main` (`d416187`) & Verified — **Phase 4 (Tenant Onboarding & Management) Planning Baseline (`D1–D6` & `OD-*` Confirmed; Awaiting Independent PR Review)**  
+**Last Updated:** 2026-11-14
 
 ---
 
@@ -35,6 +35,17 @@
 - [05 – Phase 1 Task Execution & Verification Register](file:///d:/FT360/docs/planning/05-phase-1-task-register.md)
 - [06 – Phase 2 Task Execution & Verification Register](file:///d:/FT360/docs/planning/06-phase-2-task-register.md)
 - [07 – Phase 3 Authentication Task & Test Register](file:///d:/FT360/docs/planning/07-phase-3-task-register.md)
+- **Phase 4 Planning Suite (`/docs/planning/phase-4/` — *Planning Baseline, `35` Endpoints · `14` Route-Views · `D1–D6` & `OD-*` Confirmed*):**
+  1. [Phase 4 Overview](file:///d:/FT360/docs/planning/phase-4/phase-4-overview.md)
+  2. [Phase 4 Functional Requirements (Modules 4.1–4.10)](file:///d:/FT360/docs/planning/phase-4/phase-4-functional-requirements.md)
+  3. [Phase 4 Database Design Specification (7 New FORCE RLS Tables)](file:///d:/FT360/docs/planning/phase-4/phase-4-database-design.md)
+  4. [Phase 4 REST API Specification (35 Endpoints)](file:///d:/FT360/docs/planning/phase-4/phase-4-api-specification.md)
+  5. [Phase 4 Frontend Screen Plan (14 Route-Views: 11 New + 3 Updated)](file:///d:/FT360/docs/planning/phase-4/phase-4-frontend-screen-plan.md)
+  6. [Phase 4 Permission Matrix (24 Permissions Across 35 Endpoints)](file:///d:/FT360/docs/planning/phase-4/phase-4-permission-matrix.md)
+  7. [Phase 4 Security Threat Model & Negative Tests (SEC-P4-01–20)](file:///d:/FT360/docs/planning/phase-4/phase-4-security-threat-model.md)
+  8. [Phase 4 Testing & QA Strategy (All Cases PLANNED — NOT EXECUTED)](file:///d:/FT360/docs/planning/phase-4/phase-4-test-strategy.md)
+  9. [Phase 4 Step-by-Step Development Roadmap (Stages 4A–4E)](file:///d:/FT360/docs/planning/phase-4/phase-4-development-roadmap.md)
+  10. [Phase 4 Acceptance Criteria & Confirmed Architecture Decisions](file:///d:/FT360/docs/planning/phase-4/phase-4-acceptance-criteria.md)
 
 ### 5. Testing & QA (`/docs/testing/`)
 - [01 – Testing, Cross-Tenant Security & QA Strategy](file:///d:/FT360/docs/testing/01-test-and-qa-strategy.md)
