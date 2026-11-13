@@ -1,8 +1,8 @@
 # SQL Migrations Framework & Indexing Strategy
 
 **Last Updated:** 2026-11-13  
-**Status:** Phase 2 Active Specification (`0001`–`0004` Applied & Verified)  
-**Version:** 0.2.0
+**Status:** Phase 3 Active Specification (`0001`–`0005` Applied & Verified)  
+**Version:** 0.3.0
 
 ---
 
@@ -19,7 +19,9 @@ db/migrations/
 ├── 0003_users_tenants_and_memberships.up.sql
 ├── 0003_users_tenants_and_memberships.down.sql
 ├── 0004_rbac_roles_permissions_and_assignments.up.sql
-└── 0004_rbac_roles_permissions_and_assignments.down.sql
+├── 0004_rbac_roles_permissions_and_assignments.down.sql
+├── 0005_authentication_sessions_tokens_and_audit.up.sql
+└── 0005_authentication_sessions_tokens_and_audit.down.sql
 ```
 
 ### Migration Safety Rules
@@ -51,3 +53,16 @@ db/migrations/
    - `idx_tenants_status_created ON tenants (status, created_at DESC)`
    - `idx_permissions_scope_module ON permissions (scope_plane, module_code)`
    - `idx_role_permissions_permission ON role_permissions (permission_id)`
+3. **Phase 3 Authentication, Session Lineage & Audit Indexes (`0005`):**
+   - `uq_auth_sessions_refresh_token_hash ON auth_sessions (refresh_token_hash)`
+   - `idx_auth_sessions_user_active ON auth_sessions (user_id, expires_at DESC) WHERE revoked_at IS NULL`
+   - `idx_auth_sessions_family_id ON auth_sessions (family_id)`
+   - `idx_auth_sessions_prev_refresh_hash ON auth_sessions (previous_refresh_token_hash) WHERE previous_refresh_token_hash IS NOT NULL`
+   - `idx_auth_sessions_active_tenant_member ON auth_sessions (active_tenant_id, active_membership_id) WHERE active_tenant_id IS NOT NULL`
+   - `uq_email_verification_tokens_hash ON email_verification_tokens (token_hash)`
+   - `idx_email_verification_tokens_user_active ON email_verification_tokens (user_id, expires_at DESC) WHERE consumed_at IS NULL`
+   - `uq_password_reset_tokens_hash ON password_reset_tokens (token_hash)`
+   - `idx_password_reset_tokens_user_active ON password_reset_tokens (user_id, expires_at DESC) WHERE consumed_at IS NULL`
+   - `idx_auth_audit_logs_tenant_created ON auth_audit_logs (tenant_id, created_at DESC) WHERE tenant_id IS NOT NULL`
+   - `idx_auth_audit_logs_actor_created ON auth_audit_logs (actor_user_id, created_at DESC) WHERE actor_user_id IS NOT NULL`
+   - `idx_auth_audit_logs_event_created ON auth_audit_logs (event_type, outcome, created_at DESC)`

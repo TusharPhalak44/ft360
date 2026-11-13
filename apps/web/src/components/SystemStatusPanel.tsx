@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import React, { useCallback, useEffect, useState } from 'react';
 import type { ProductBrandingConfig, SystemHealthStatus } from '@ft360/shared-types';
 import { ApiClientError, foundationApi } from '@/lib/api/client';
@@ -149,6 +150,20 @@ export function SystemStatusPanel() {
           >
             Refresh
           </button>
+          <Link
+            href="/login"
+            data-testid="nav-sign-in"
+            className="rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          >
+            Sign In
+          </Link>
+          <Link
+            href="/register"
+            data-testid="nav-register"
+            className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Create Account
+          </Link>
         </div>
       </header>
 
