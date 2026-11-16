@@ -87,7 +87,13 @@ export interface VerifiedTenantContext {
 
 export type UserStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'ARCHIVED';
 
-export type TenantStatus = 'PROVISIONING' | 'TRIAL' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
+export type TenantStatus =
+  | 'PROVISIONING'
+  | 'TRIAL'
+  | 'ACTIVE'
+  | 'SUSPENDED'
+  | 'DEACTIVATED'
+  | 'CANCELLED';
 
 export type MembershipType = 'INTERNAL' | 'CLIENT_PORTAL' | 'PARTNER';
 
@@ -120,6 +126,11 @@ export interface TenantEntity {
   defaultCurrency: string;
   activatedAt: string | null;
   suspendedAt: string | null;
+  deactivatedAt?: string | null;
+  cancelledAt?: string | null;
+  statusReason?: string | null;
+  onboardingCompletedAt?: string | null;
+  createdByUserId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -130,10 +141,14 @@ export interface TenantMembershipEntity {
   userId: string;
   membershipType: MembershipType;
   status: MembershipStatus;
+  isPrimaryOwner?: boolean;
   jobTitle: string | null;
   employeeCode: string | null;
   invitedByUserId: string | null;
   joinedAt: string | null;
+  suspendedAt?: string | null;
+  revokedAt?: string | null;
+  statusReason?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -285,6 +300,49 @@ export interface PlatformAuthOverviewPayload {
     activeTenants: number;
     activeSessions: number;
   };
+}
+
+// =============================================================================
+// Phase 4 (Stage 4A) – Tenant Domain Governance & State-Diff Audit Contracts
+// =============================================================================
+
+export type TenantAuditOutcome = 'SUCCESS' | 'FAILURE' | 'DENIED';
+
+export type TenantAuditActorPlane = 'TENANT' | 'PLATFORM' | 'USER_ONBOARDING';
+
+export type TenantAuditResourceType =
+  | 'TENANT'
+  | 'ONBOARDING'
+  | 'PROFILE'
+  | 'SETTINGS'
+  | 'BRANDING'
+  | 'INVITATION'
+  | 'MEMBERSHIP'
+  | 'ROLE_ASSIGNMENT';
+
+export interface TenantAuditLogEntry {
+  id: string;
+  tenantId: string;
+  eventType: string;
+  resourceType: TenantAuditResourceType;
+  resourceId: string | null;
+  outcome: TenantAuditOutcome;
+  actorPlane: TenantAuditActorPlane;
+  actorUserId: string | null;
+  actorMembershipId: string | null;
+  reason: string | null;
+  beforeState: Record<string, unknown> | null;
+  afterState: Record<string, unknown> | null;
+  metadata: Record<string, unknown>;
+  correlationId: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: string;
+}
+
+export interface TenantAuditLogPagePayload {
+  items: TenantAuditLogEntry[];
+  nextCursor: string | null;
 }
 
 

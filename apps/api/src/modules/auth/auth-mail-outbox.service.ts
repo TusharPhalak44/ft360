@@ -68,9 +68,9 @@ export function redactMailLogText(input: string, rawToken?: string): string {
     const encoded = encodeURIComponent(rawToken.trim());
     scrubbed = scrubbed.split(encoded).join('[REDACTED_TOKEN]');
   }
-  // Scrub any verification/reset action URLs or query tokens
+  // Scrub any verification/reset/invitation action URLs or query tokens
   scrubbed = scrubbed.replace(
-    /https?:\/\/[^\s"'<>]+\/(?:verify-email|reset-password)[^\s"'<>]*/gi,
+    /https?:\/\/[^\s"'<>]+\/(?:verify-email|reset-password|invitations\/accept)[^\s"'<>]*/gi,
     '[REDACTED_ACTION_URL]',
   );
   scrubbed = scrubbed.replace(/([?&]token=)[^&\s"'<>]+/gi, '$1[REDACTED_TOKEN]');
@@ -345,7 +345,8 @@ export class AuthMailOutboxService implements OnModuleInit, OnModuleDestroy {
         };
       }
 
-      rawToken = this.openActionToken(claimed.encryptedActionToken, claimed.userId, claimed.kind);
+      const aadSubject = claimed.userId ?? claimed.recipientEmail.trim().toLowerCase();
+      rawToken = this.openActionToken(claimed.encryptedActionToken, aadSubject, claimed.kind);
       const envelope = this.renderTransactionalEnvelope(claimed, rawToken);
       const result = await this.mailProvider.send(envelope);
 
@@ -418,11 +419,16 @@ export class AuthMailOutboxService implements OnModuleInit, OnModuleDestroy {
   }
 
   private buildActionUrl(
-    kind: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET',
+    kind: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET' | 'TENANT_INVITATION',
     rawToken: string,
   ): string {
     const baseUrl = this.config.brandingDefaults.websiteUrl.replace(/\/+$/, '');
-    const route = kind === 'EMAIL_VERIFICATION' ? '/verify-email' : '/reset-password';
+    const route =
+      kind === 'EMAIL_VERIFICATION'
+        ? '/verify-email'
+        : kind === 'TENANT_INVITATION'
+          ? '/invitations/accept'
+          : '/reset-password';
     return `${baseUrl}${route}?token=${encodeURIComponent(rawToken)}`;
   }
 

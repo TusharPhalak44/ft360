@@ -17,9 +17,17 @@ import { RbacRepository } from '../foundation-db/rbac.repository';
 
 const ADMIN_ANY_CODES = new Set([
   'tenant:organization:manage',
-  'rbac:roles:manage',
+  'tenant:settings:manage',
+  'tenant:branding:manage',
   'tenant:members:manage',
+  'tenant:roles:assign',
+  'tenant:invitations:read',
+  'tenant:invitations:manage',
+  'tenant:admins:read',
+  'tenant:admins:manage',
+  'rbac:roles:manage',
   'audit:auth:read',
+  'audit:tenant:read',
 ]);
 
 @ApiTags('Workspace Boundary (Tenant Plane)')

@@ -69,10 +69,12 @@ export type EmailOutboxStatus =
   | 'DEAD_LETTER'
   | 'EXPIRED';
 
+export type EmailOutboxKind = 'EMAIL_VERIFICATION' | 'PASSWORD_RESET' | 'TENANT_INVITATION';
+
 export interface ClaimedEmailOutboxRecord {
   outboxId: string;
-  kind: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET';
-  userId: string;
+  kind: EmailOutboxKind;
+  userId: string | null;
   recipientEmail: string;
   recipientFullName: string;
   encryptedActionToken: string | null;
@@ -85,8 +87,8 @@ export interface ClaimedEmailOutboxRecord {
 
 export interface EmailOutboxStatusRecord {
   outboxId: string;
-  kind: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET';
-  userId: string;
+  kind: EmailOutboxKind;
+  userId: string | null;
   recipientEmail: string;
   status: EmailOutboxStatus;
   attemptCount: number;
@@ -786,8 +788,8 @@ export class AuthRepository {
   async claimEmailOutboxById(outboxId: string): Promise<ClaimedEmailOutboxRecord | null> {
     const res = await this.dbPool.queryUnscoped<{
       outbox_id: string;
-      kind: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET';
-      user_id: string;
+      kind: EmailOutboxKind;
+      user_id: string | null;
       recipient_email: string;
       recipient_full_name: string;
       encrypted_action_token: string | null;
@@ -823,8 +825,8 @@ export class AuthRepository {
   async claimEmailOutboxBatch(batchSize = 10): Promise<ClaimedEmailOutboxRecord[]> {
     const res = await this.dbPool.queryUnscoped<{
       outbox_id: string;
-      kind: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET';
-      user_id: string;
+      kind: EmailOutboxKind;
+      user_id: string | null;
       recipient_email: string;
       recipient_full_name: string;
       encrypted_action_token: string | null;
@@ -891,8 +893,8 @@ export class AuthRepository {
   async getEmailOutboxStatus(outboxId: string): Promise<EmailOutboxStatusRecord | null> {
     const res = await this.dbPool.queryUnscoped<{
       outbox_id: string;
-      kind: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET';
-      user_id: string;
+      kind: EmailOutboxKind;
+      user_id: string | null;
       recipient_email: string;
       status: EmailOutboxStatus;
       attempt_count: number;

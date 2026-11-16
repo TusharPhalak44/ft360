@@ -1,8 +1,8 @@
 # Security Architecture
 
-**Last Updated:** 2026-11-12  
-**Status:** Phase 0 Security Specification  
-**Version:** 0.1.0
+**Last Updated:** 2026-11-16  
+**Status:** Phase 4 Stage 4A Active Security Specification  
+**Version:** 0.4.0
 
 ---
 
@@ -10,40 +10,21 @@
 
 Security is enforced across seven concentric layers:
 
-1. **Edge & Transport:** TLS 1.3 everywhere, strict CORS allowlist, `helmet` security headers, CSP, HSTS, rate limiting via Redis (`@nestjs/throttler` keyed by IP + User + Tenant).
-2. **Authentication (AuthN):** Argon2id password hashing + short-lived JWT Access Tokens + rotating opaque Refresh Sessions stored in PostgreSQL/Redis via `HttpOnly`, `Secure`, `SameSite=Lax/Strict` cookies.
-3. **Tenant Context Verification:** Server-side verification of `user.status`, `tenant.status`, and `tenant_membership.status` on every protected request; client-supplied `tenant_id` ignored.
-4. **Authorization (AuthZ – RBAC):** Fine-grained permission codes (`module:resource:action`, e.g., `crm:leads:create`, `hr:payroll:read`) evaluated by `PermissionsGuard` plus record-ownership scopes (`OWN`, `TEAM`, `TENANT`) inside domain services.
-5. **Database Isolation (RLS + Composite FKs):** PostgreSQL RLS with `FORCE ROW LEVEL SECURITY` under `NOBYPASSRLS` application role (`ft360_app`).
-6. **Input & Query Safety:** Strict DTO whitelist validation (`forbidNonWhitelisted: true`) + 100% parameterized SQL via `pg` (`$1, $2...`).
-7. **Immutable Audit Trail:** Append-only `platform_audit_logs` and `tenant_audit_logs` capturing actor, IP, user-agent, correlation ID, before/after state diff (redacting secrets/PII where mandated).
+1. **Edge & Transport:** Strict CORS allowlist, `helmet` security headers, global `CsrfProtectionGuard` (`Origin`/`Referer`/`Sec-Fetch-Site` + constant-time `X-CSRF-Token` double-submit validation), and Redis rate limiting (`AuthRateLimitService`).
+2. **Authentication (AuthN):** Argon2id password hashing (`64 MiB`) + short-lived signed Access JWTs (`15m`) + rotating 256-bit opaque Refresh Sessions with multi-generation `family_id` replay detection (`auth_refresh_token_history`) and AES-256-GCM durable email outbox (`auth_email_outbox`).
+3. **Tenant Context & Fail-Safe Lifecycle Verification:** Server-side verification of `user.status = 'ACTIVE'`, `tenant_membership.status = 'ACTIVE'`, and `tenant.status IN ('ACTIVE', 'TRIAL')` on every protected request; client-supplied `tenant_id` (`x-tenant-id`, `?tenant_id`, body `tenantId`) is actively rejected (`400 UNTRUSTED_TENANT_INPUT_REJECTED`). When Redis is unavailable, `RedisSessionCacheService` degrades safely to PostgreSQL's 4-layer lifecycle checks (`fn_auth_validate_session`, `fn_verify_tenant_membership`, `withVerifiedMemberTransaction`, `fn_is_current_tenant_operational()`).
+4. **Authorization (AuthZ – Plane & RBAC Guards):**
+   - `PlatformSuperAdminGuard` enforces `is_platform_super_admin = TRUE`, `status = 'ACTIVE'`, and `tid === null` on `/api/v1/platform/*`.
+   - `TenantMembershipGuard` + `TenantPermissionGuard` (`@RequirePermissions(...)`) and `TenantAdminGuard` enforce fine-grained `module:resource:action` capabilities across the `24` canonical permissions seeded in `public.permissions`.
+5. **Database Isolation (`FORCE RLS` + Composite FKs + Column Omission):** All `22` public tables enforce `ENABLE` + `FORCE ROW LEVEL SECURITY` under `ft360_app` (`NOSUPERUSER NOBYPASSRLS NOINHERIT`), composite `(tenant_id, ...)` foreign keys, and column-level `SELECT` exclusion on all password/token/refresh/CSRF/outbox secret columns (`42501`).
+6. **Input & Query Safety:** Strict DTO whitelist validation (`forbidNonWhitelisted: true`) + 100% parameterized native `pg` SQL (`$1, $2...`, zero ORM).
+7. **Immutable Dual-Ledger Audit Trail:** Append-only `auth_audit_logs` (`0005`–`0006`) and `tenant_audit_logs` (`0007`, `TenantAuditModule`) enforce `42501` immutability triggers, `ON DELETE RESTRICT` tenant retention, mandatory `correlation_id`, field-level `before_state`/`after_state` diffs, and recursive secret-key rejection (`fn_jsonb_has_forbidden_secret_key` -> `23514`).
 
 ---
 
-## 2. Authentication & Session Architecture
+## 2. Tenant Lifecycle, Ownership & Invitation Security Invariants (`0007`–`0008`)
 
-- **Password Storage:** `Argon2id` (memory cost >= 64 MiB, iterations >= 3, parallelism = 4). Plaintext passwords never logged.
-- **Token Pair Strategy:**
-  - **Access Token (JWT, 10–15 min TTL):** Signed with asymmetric `RS256`/`EdDSA` keypair. Claims: `sub` (userId), `sid` (sessionId), `tid` (activeTenantId or `null` pre-selection), `padmin` (boolean platform admin flag, verified server-side), `iat`, `exp`.
-  - **Refresh Token (Opaque 256-bit random token, 7–30 day sliding/absolute TTL):** Stored as SHA-256 hash in `auth_sessions` table; rotated on every refresh with **reuse detection** (if a rotated token is replayed, the entire session family is immediately revoked).
-- **Immediate Revocation:** Suspending a user, revoking a tenant membership, or suspending a tenant immediately invalidates Redis session/membership cache entries (`session:{sid}`, `t:{tid}:member:{uid}`), blocking access within milliseconds without waiting for JWT expiration.
-- **Future Enterprise Readiness:** Schema reserves hooks for TOTP/MFA (`user_mfa_factors`) and SSO/OIDC (`tenant_identity_providers`) required by Module 32 (Enterprise Administration).
-
----
-
-## 3. Role-Based Access Control (RBAC) Model
-
-### 3.1 Two Distinct Authorization Planes
-1. **Platform Plane (`platform_*` permissions):** Assigned only to Platform Super Admin staff (e.g., `platform:tenants:suspend`, `platform:plans:manage`, `platform:branding:update`). Platform Super Admins **do not** silently read tenant business data during normal browsing; any support impersonation ("break-glass") feature requires explicit tenant approval setting, mandatory reason ticket, time-boxed session, and high-severity entries in **both** platform and tenant audit logs.
-2. **Tenant Plane (`<module>:<resource>:<action>` permissions):**
-   - Global `permissions` catalog defines canonical capabilities seeded via SQL migrations.
-   - Each tenant receives default system roles on provisioning (`Tenant Owner`, `Tenant Admin`, `Sales Manager`, `Sales Rep`, `Operations Executive`, `QA Analyst`, `Marketing Specialist`, `HR Manager`, `Finance Manager`, `Employee`, `Client Portal User`) and can create custom tenant-specific roles in `roles`.
-   - `user_role_assignments` binds one or more `roles` to a `tenant_membership`.
-
----
-
-## 4. Secrets, PII, and File Security
-
-- **Secrets Management:** `.env` files are git-ignored; `.env.example` contains placeholder keys only. Production secrets reside in encrypted secret managers (GitHub Encrypted Secrets / AWS Secrets Manager / Vault). Tenant-owned third-party API keys (VoIP, SMTP, Webhooks) are encrypted at rest using envelope encryption (`AES-256-GCM`) before storing in PostgreSQL.
-- **File Upload Hardening:** Validate MIME magic bytes (not file extensions alone), enforce size limits per subscription plan, scan/quarantine untrusted uploads where applicable, and serve downloads with `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff` via short-lived tenant-scoped pre-signed S3 URLs.
-
+- **6-State Tenant Lifecycle & `OD-P1` Cancellation Guard:** Tenants progress across `PROVISIONING`, `TRIAL`, `ACTIVE`, `SUSPENDED`, `DEACTIVATED`, and terminal `CANCELLED`. Direct `TRIAL -> CANCELLED` and `ACTIVE -> CANCELLED` transitions are blocked (`OD-P1`), requiring prior `SUSPENDED` or `DEACTIVATED` status and a `10..500` character reason.
+- **Serialized Last-Admin & Primary-Owner Integrity:** `uq_tenant_memberships_primary_owner` guarantees at most one primary owner per tenant; `trigger_enforce_admin_membership_type()` restricts `tenant_admin` to `INTERNAL` memberships; and `trigger_prevent_last_tenant_admin_removal()` locks `public.tenants FOR UPDATE` to prevent concurrent removal of the last active administrator.
+- **Initiator vs. Recipient Invitation Separation:** `tenant_invitations` and `auth_email_outbox` strictly separate `invited_by_user_id` / `initiated_by_user_id` from `accepted_by_user_id` (`chk_auth_email_outbox_anchor` requires `user_id IS NULL` for `'TENANT_INVITATION'`; `chk_ti_initiator_recipient_distinct` prevents self-acceptance; raw `/invitations/accept?token=...` URLs are scrubbed from logs).
+- **Branding Asset Database Guardrails:** `tenant_branding_assets` blocks `image/svg+xml` (`chk_tba_mime_no_svg`) and enforces raster dimension and pixel-count caps (`<= 4.19 MP` logos, square `<= 0.26 MP` favicons) ahead of Stage 4C `sharp` pixel-stream decoding.
