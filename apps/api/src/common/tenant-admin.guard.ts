@@ -15,9 +15,17 @@ import type { RequestWithAuthSession } from './jwt-auth.guard';
 
 const DEFAULT_TENANT_ADMIN_ANY_OF = [
   'tenant:organization:manage',
-  'rbac:roles:manage',
+  'tenant:settings:manage',
+  'tenant:branding:manage',
   'tenant:members:manage',
+  'tenant:roles:assign',
+  'tenant:invitations:read',
+  'tenant:invitations:manage',
+  'tenant:admins:read',
+  'tenant:admins:manage',
+  'rbac:roles:manage',
   'audit:auth:read',
+  'audit:tenant:read',
 ];
 
 /**

@@ -57,15 +57,23 @@ describe('Phase 3 Authentication, Verification, Session Rotation, Password Reset
   beforeAll(async () => {
     config = loadAppConfig();
 
-    // IT-P3-01: Verify Migration 0006 rollback -> re-up cleanly
+    // IT-P3-01: Verify latest migrations (0008 -> 0007 -> 0006) rollback -> re-up cleanly
     const runner = new SqlMigrationRunner(config.database.migratorUrl);
     try {
       await runner.migrateUp();
+      expect(await runner.rollbackLatest()).toBe(
+        '0008_phase4_invitations_outbox_and_integrity_routines',
+      );
+      expect(await runner.rollbackLatest()).toBe(
+        '0007_phase4_tenant_core_schema_and_audit',
+      );
       expect(await runner.rollbackLatest()).toBe(
         '0006_phase3_auth_security_remediation',
       );
       expect(await runner.migrateUp()).toEqual([
         '0006_phase3_auth_security_remediation',
+        '0007_phase4_tenant_core_schema_and_audit',
+        '0008_phase4_invitations_outbox_and_integrity_routines',
       ]);
     } finally {
       await runner.close();
@@ -165,7 +173,7 @@ describe('Phase 3 Authentication, Verification, Session Rotation, Password Reset
     }
   });
 
-  it('IT-P3-01: verifies all 15 public tables have ft360_migrator owner + FORCE RLS, composite FK on auth_sessions, and zero direct SELECT on secret columns', async () => {
+  it('IT-P3-01: verifies all 22 public tables have ft360_migrator owner + FORCE RLS, composite FK on auth_sessions, and zero direct SELECT on secret columns', async () => {
     const tablesRes = await dbPool.queryUnscoped<{
       tablename: string;
       tableowner: string;
@@ -192,7 +200,14 @@ describe('Phase 3 Authentication, Verification, Session Rotation, Password Reset
       'rls_isolation_canary',
       'role_permissions',
       'roles',
+      'tenant_audit_logs',
+      'tenant_branding_assets',
+      'tenant_branding_settings',
+      'tenant_invitations',
       'tenant_memberships',
+      'tenant_onboarding_states',
+      'tenant_profiles',
+      'tenant_settings',
       'tenants',
       'user_role_assignments',
       'users',

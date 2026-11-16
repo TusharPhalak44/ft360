@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { RedisService } from '../../cache/redis.service';
 import { assertValidUuid } from '../../common/uuid.util';
 import { APP_CONFIG, type AppEnvConfig } from '../../config/env.config';
@@ -14,8 +14,20 @@ export interface CachedActiveSessionState {
   expiresAtEpochMs: number;
 }
 
+/**
+ * Redis session cache accelerator with fail-safe PostgreSQL fallback.
+ *
+ * Security invariant: `JwtAuthGuard` and `TenantMembershipGuard` unconditionally
+ * validate session, user, membership, and tenant operational lifecycle directly
+ * against PostgreSQL on every request. If Redis is unavailable, all cache operations
+ * log a structured `[REDIS_UNAVAILABLE_FALLBACK_PG]` warning and degrade cleanly
+ * to synchronous PostgreSQL validation — never granting cached access and never
+ * blocking Platform Super Admin lifecycle controls.
+ */
 @Injectable()
 export class RedisSessionCacheService {
+  private readonly logger = new Logger(RedisSessionCacheService.name);
+
   constructor(
     private readonly redis: RedisService,
     @Inject(APP_CONFIG) private readonly config: AppEnvConfig,
@@ -28,20 +40,34 @@ export class RedisSessionCacheService {
       (Math.min(state.idleExpiresAtEpochMs, state.expiresAtEpochMs) - nowMs) / 1000,
     );
     const ttl = Math.max(1, Math.min(this.config.auth.accessTokenTtlSeconds, remainingSec));
-    await this.redis.setAuthJson('sess', sid, state, ttl);
+    try {
+      await this.redis.setAuthJson('sess', sid, state, ttl);
+    } catch (err) {
+      this.logFallback('cacheActiveSession', err);
+    }
   }
 
   async getCachedSession(sessionId: string): Promise<CachedActiveSessionState | null> {
     const sid = assertValidUuid(sessionId, 'sessionId');
-    const revoked = await this.isSessionTombstoned(sid);
-    if (revoked) return null;
-    return this.redis.getAuthJson<CachedActiveSessionState>('sess', sid);
+    try {
+      const revoked = await this.isSessionTombstoned(sid);
+      if (revoked) return null;
+      return await this.redis.getAuthJson<CachedActiveSessionState>('sess', sid);
+    } catch (err) {
+      this.logFallback('getCachedSession', err);
+      return null;
+    }
   }
 
   async isSessionTombstoned(sessionId: string): Promise<boolean> {
     const sid = assertValidUuid(sessionId, 'sessionId');
-    const marker = await this.redis.getAuthJson<{ revokedAt: number }>('revoked_sess', sid);
-    return marker !== null;
+    try {
+      const marker = await this.redis.getAuthJson<{ revokedAt: number }>('revoked_sess', sid);
+      return marker !== null;
+    } catch (err) {
+      this.logFallback('isSessionTombstoned', err);
+      return false;
+    }
   }
 
   async tombstoneSessions(sessionIds: readonly string[], reason: string): Promise<void> {
@@ -50,13 +76,17 @@ export class RedisSessionCacheService {
       .map((id) => assertValidUuid(id, 'sessionId'));
     if (normalized.length === 0) return;
 
-    await this.redis.deleteAuthKeys('sess', normalized);
-    const ttl = Math.max(60, this.config.auth.refreshIdleTtlSeconds);
-    await Promise.all(
-      normalized.map((sid) =>
-        this.redis.setAuthJson('revoked_sess', sid, { revokedAt: Date.now(), reason }, ttl),
-      ),
-    );
+    try {
+      await this.redis.deleteAuthKeys('sess', normalized);
+      const ttl = Math.max(60, this.config.auth.refreshIdleTtlSeconds);
+      await Promise.all(
+        normalized.map((sid) =>
+          this.redis.setAuthJson('revoked_sess', sid, { revokedAt: Date.now(), reason }, ttl),
+        ),
+      );
+    } catch (err) {
+      this.logFallback('tombstoneSessions', err);
+    }
   }
 
   async markAllUserSessionsRevoked(
@@ -66,16 +96,31 @@ export class RedisSessionCacheService {
   ): Promise<void> {
     const uid = assertValidUuid(userId, 'userId');
     await this.tombstoneSessions(sessionIds, reason);
-    await this.redis.setAuthJson(
-      'user_revoked_at',
-      uid,
-      { revokedAtEpochMs: Date.now(), reason },
-      Math.max(60, this.config.auth.sessionAbsoluteTtlSeconds),
-    );
+    try {
+      await this.redis.setAuthJson(
+        'user_revoked_at',
+        uid,
+        { revokedAtEpochMs: Date.now(), reason },
+        Math.max(60, this.config.auth.sessionAbsoluteTtlSeconds),
+      );
+    } catch (err) {
+      this.logFallback('markAllUserSessionsRevoked', err);
+    }
   }
 
   async evictSessionCache(sessionId: string): Promise<void> {
     const sid = assertValidUuid(sessionId, 'sessionId');
-    await this.redis.deleteAuthKeys('sess', [sid]);
+    try {
+      await this.redis.deleteAuthKeys('sess', [sid]);
+    } catch (err) {
+      this.logFallback('evictSessionCache', err);
+    }
+  }
+
+  private logFallback(operation: string, err: unknown): void {
+    const errName = err instanceof Error ? err.name : 'RedisError';
+    this.logger.warn(
+      `[REDIS_UNAVAILABLE_FALLBACK_PG] Redis session cache unavailable during ${operation} (${errName}); authoritative PostgreSQL validation remains active.`,
+    );
   }
 }

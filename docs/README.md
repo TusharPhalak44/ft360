@@ -1,8 +1,8 @@
 # Project Documentation Index
 
 **Product Codename:** FunnelTrack360 *(Configurable via Platform & Tenant Branding Settings)*  
-**Current Phase:** Phase 3 Merged to `main` (`d416187`) & Verified — **Phase 4 (Tenant Onboarding & Management) Planning Baseline (`D1–D6` & `OD-*` Confirmed; Awaiting Independent PR Review)**  
-**Last Updated:** 2026-11-14
+**Current Phase:** Phase 3 Merged to `main` (`d416187`) · Phase 4 Planning Merged (`PR #5` @ `4caf3d9`) · **Phase 4 Stage 4A (`0007`–`0008` Database Foundation & `TenantAuditModule`) Implemented & In PR Review (`Stages 4B–4E` Not Started)**  
+**Last Updated:** 2026-11-16
 
 ---
 
@@ -19,10 +19,10 @@
 - [07 – Phase 3 Authentication, Session Management & Authorization Boundaries](file:///d:/FT360/docs/architecture/07-authentication-architecture-and-workflows.md)
 
 ### 2. Database (`/docs/database/`)
-- [01 – Entity-Relationship (ER) Diagrams](file:///d:/FT360/docs/database/01-er-diagrams.md)
-- [02 – Core Database Schema & Table Catalog](file:///d:/FT360/docs/database/02-database-schema.md)
-- [03 – SQL Migrations Framework & Indexing Strategy](file:///d:/FT360/docs/database/03-sql-migrations-and-indexing.md)
-- [04 – PostgreSQL Row-Level Security (RLS) Policies](file:///d:/FT360/docs/database/04-rls-policies.md)
+- [01 – Entity-Relationship (ER) Diagrams (`22` Implemented Entities)](file:///d:/FT360/docs/database/01-er-diagrams.md)
+- [02 – Core Database Schema & Table Catalog (`0001`–`0008`)](file:///d:/FT360/docs/database/02-database-schema.md)
+- [03 – SQL Migrations Framework & Indexing Strategy (`0001`–`0008`)](file:///d:/FT360/docs/database/03-sql-migrations-and-indexing.md)
+- [04 – PostgreSQL Row-Level Security (RLS) Policies (`22` `FORCE RLS` Tables)](file:///d:/FT360/docs/database/04-rls-policies.md)
 
 ### 3. Modules & Permanent Tracking (`/docs/modules/`)
 - [00 – Permanent Module Development & QA Tracking Register (M01–M32)](file:///d:/FT360/docs/modules/00-module-tracking-register.md)
@@ -35,7 +35,8 @@
 - [05 – Phase 1 Task Execution & Verification Register](file:///d:/FT360/docs/planning/05-phase-1-task-register.md)
 - [06 – Phase 2 Task Execution & Verification Register](file:///d:/FT360/docs/planning/06-phase-2-task-register.md)
 - [07 – Phase 3 Authentication Task & Test Register](file:///d:/FT360/docs/planning/07-phase-3-task-register.md)
-- **Phase 4 Planning Suite (`/docs/planning/phase-4/` — *Planning Baseline, `35` Endpoints · `14` Route-Views · `D1–D6` & `OD-*` Confirmed*):**
+- [08 – Phase 4 Tenant Onboarding & Management Task & Verification Register](file:///d:/FT360/docs/planning/08-phase-4-task-register.md)
+- **Phase 4 Planning Suite (`/docs/planning/phase-4/` — *Approved & Merged via `PR #5` @ `4caf3d9` · Stage 4A In PR Review*):**
   1. [Phase 4 Overview](file:///d:/FT360/docs/planning/phase-4/phase-4-overview.md)
   2. [Phase 4 Functional Requirements (Modules 4.1–4.10)](file:///d:/FT360/docs/planning/phase-4/phase-4-functional-requirements.md)
   3. [Phase 4 Database Design Specification (7 New FORCE RLS Tables)](file:///d:/FT360/docs/planning/phase-4/phase-4-database-design.md)
@@ -43,7 +44,7 @@
   5. [Phase 4 Frontend Screen Plan (14 Route-Views: 11 New + 3 Updated)](file:///d:/FT360/docs/planning/phase-4/phase-4-frontend-screen-plan.md)
   6. [Phase 4 Permission Matrix (24 Permissions Across 35 Endpoints)](file:///d:/FT360/docs/planning/phase-4/phase-4-permission-matrix.md)
   7. [Phase 4 Security Threat Model & Negative Tests (SEC-P4-01–20)](file:///d:/FT360/docs/planning/phase-4/phase-4-security-threat-model.md)
-  8. [Phase 4 Testing & QA Strategy (All Cases PLANNED — NOT EXECUTED)](file:///d:/FT360/docs/planning/phase-4/phase-4-test-strategy.md)
+  8. [Phase 4 Testing & QA Strategy (Stage 4A Executed · Stages 4B–4E Planned)](file:///d:/FT360/docs/planning/phase-4/phase-4-test-strategy.md)
   9. [Phase 4 Step-by-Step Development Roadmap (Stages 4A–4E)](file:///d:/FT360/docs/planning/phase-4/phase-4-development-roadmap.md)
   10. [Phase 4 Acceptance Criteria & Confirmed Architecture Decisions](file:///d:/FT360/docs/planning/phase-4/phase-4-acceptance-criteria.md)
 
@@ -52,11 +53,12 @@
 - [02 – Phase 1 Test Execution Evidence Report](file:///d:/FT360/docs/testing/02-phase-1-test-report.md)
 - [03 – Phase 2 Database Foundation & Mandatory Negative RLS Test Report](file:///d:/FT360/docs/testing/03-phase-2-test-report.md)
 - [04 – Phase 3 Authentication, Session Security & Plane Boundary Test Report](file:///d:/FT360/docs/testing/04-phase-3-test-report.md)
+- [05 – Phase 4 (Stage 4A) Database Foundation, Concurrency Locks, RLS & Tenant Audit Test Report](file:///d:/FT360/docs/testing/05-phase-4-test-report.md)
 
 ### 6. Operations & Continuity (`/docs/operations/`)
 - [01 – Backup, Disaster Recovery & Environment Operations](file:///d:/FT360/docs/operations/01-backup-recovery-and-environments.md)
 - [02 – Local Development Environment Setup Guide](file:///d:/FT360/docs/operations/02-local-development-setup.md)
 
 ### 7. Independent Security & Code Reviews (`/docs/reviews/`)
-- [Phase 3 Independent Review Checklist (`NOT VERIFIED` — Assigned: `@NakshtraSulakhe`)](file:///d:/FT360/docs/reviews/phase-3-independent-review-checklist.md)
-- [Phase 3 Independent Review Handoff Summary (`READY_FOR_INDEPENDENT_REVIEW`)](file:///d:/FT360/docs/reviews/phase-3-independent-review-summary.md)
+- [Phase 3 Independent Review Checklist](file:///d:/FT360/docs/reviews/phase-3-independent-review-checklist.md)
+- [Phase 3 Independent Review Handoff Summary](file:///d:/FT360/docs/reviews/phase-3-independent-review-summary.md)

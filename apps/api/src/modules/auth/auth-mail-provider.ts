@@ -4,10 +4,15 @@ import * as tls from 'node:tls';
 import { Inject, Injectable } from '@nestjs/common';
 import { APP_CONFIG, type AppEnvConfig, type AuthMailConfig } from '../../config/env.config';
 
+export type AuthTransactionalMailKind =
+  | 'EMAIL_VERIFICATION'
+  | 'PASSWORD_RESET'
+  | 'TENANT_INVITATION';
+
 export interface AuthTransactionalMailMessage {
   outboxId: string;
   correlationId: string;
-  kind: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET';
+  kind: AuthTransactionalMailKind;
   fromEmail: string;
   fromName: string;
   toEmail: string;

@@ -14,6 +14,7 @@ import { BrandingModule } from './modules/branding/branding.module';
 import { FoundationDbModule } from './modules/foundation-db/foundation-db.module';
 import { HealthModule } from './modules/health/health.module';
 import { PlatformBoundaryModule } from './modules/platform-boundary/platform-boundary.module';
+import { TenantAuditModule } from './modules/tenant-audit/tenant-audit.module';
 import { WorkspaceBoundaryModule } from './modules/workspace-boundary/workspace-boundary.module';
 
 @Module({
@@ -26,6 +27,7 @@ import { WorkspaceBoundaryModule } from './modules/workspace-boundary/workspace-
     AuthModule,
     BrandingModule,
     HealthModule,
+    TenantAuditModule,
     WorkspaceBoundaryModule,
     PlatformBoundaryModule,
   ],
