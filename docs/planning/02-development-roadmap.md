@@ -1,8 +1,8 @@
 # Development Roadmap
 
-**Last Updated:** 2026-11-16  
-**Status:** Phases 0–3 CLOSED & COMPLETED (`main` @ `d416187`) · Phase 4 Planning Merged (`PR #5` @ `4caf3d9`) · **Phase 4 Stage 4A Implemented, Verified (`52/52` Unit, `37/37` Int/Sec, `2/2` E2E) & In PR Review (`Stages 4B–4E` Not Started)**  
-**Version:** 0.4.0
+**Last Updated:** 2026-11-17  
+**Status:** Phases 0–3 CLOSED & COMPLETED (`main` @ `d416187`) · Stage 4A Merged (`PR #6` @ `42d4de2`) · **Stage 4B Database Prerequisite (`0009`) Verified (`52/52` Unit, `42/42` Int/Sec) & In PR Review (`Stage 4B App/UI` & `Stages 4C–4E` Not Started)**  
+**Version:** 0.4.1
 
 ---
 

@@ -3,14 +3,14 @@
 **Phase:** Phase 4 — Tenant Onboarding & Management (`Modules 4.1–4.10`)  
 **Total Planned Deliverables:** **`35` REST API Endpoints** (`#1`–`#35`) · **`14` Frontend Route-Views** (`RV-01`–`RV-14`: `11` new + `3` updated) · **`7` New `FORCE RLS` Tables** (`22` total) · **`10` New `TENANT` Permissions** (`24` total)  
 **Confirmed Delivery Model (`D6 — CONFIRMED`):** `5` Independently Reviewable Vertical Implementation PRs (`Stage 4A` -> `Stage 4E`) targeting `development`, followed by `1` release promotion PR (`development -> main`) after full Phase 4 sign-off.  
-**Document Status:** `ACTIVE EXECUTION — PLANNING MERGED (PR #5 @ 4caf3d9) · STAGE 4A IMPLEMENTED & IN PR REVIEW · STAGES 4B–4E NOT STARTED`  
-**Last Updated:** 2026-11-16
+**Document Status:** `ACTIVE EXECUTION — STAGE 4A MERGED (PR #6 @ 42d4de2) · STAGE 4B PREREQUISITE MIGRATION 0009 IN PR REVIEW · STAGE 4B APP/UI & STAGES 4C–4E NOT STARTED`  
+**Last Updated:** 2026-11-17
 
 > [!IMPORTANT]
 > **Stage Governance & Review Gate:**
 > 1. All product and technical decisions (`D1`–`D6`, `OD-T1: sharp`, `OD-T2: @aws-sdk/client-s3`, `OD-P1`: require suspension or deactivation before cancellation, `OD-P2`: `365 days` hot audit retention) were approved and merged into `development` via **PR `#5` (`4caf3d9`)** with passing post-merge CI.
-> 2. **`Stage 4A`** (`feature/phase-4a-database-audit`) is implemented, verified locally (`52/52` unit, `37/37` PG18+Redis integration/concurrency/RLS, `2/2` Playwright E2E), and submitted via PR into `development` for independent review by `@NakshtraSulakhe` / `@manasikulkarni953`.
-> 3. **`Stage 4B` has NOT started** and remains gated on independent approval, merge, and post-merge CI of Stage 4A.
+> 2. **`Stage 4A`** ([PR #6](https://github.com/TusharPhalak44/ft360/pull/6)) was independently approved by `@NakshtraSulakhe` (`#5925270718`), merged into `development` (`42d4de2`), and verified green on Post-Merge Cloud CI ([Run #43929316797](https://github.com/TusharPhalak44/ft360/actions/runs/43929316797)).
+> 3. **`Stage 4B Database Prerequisite (`0009`)`** (`feature/phase-4b-registration-routines`) introduces the two approved narrow `SECURITY DEFINER` registration routines (`fn_check_tenant_slug_available` & `fn_tenant_provision_organization`) in a separate migration-only PR into `development`. **Stage 4B application APIs/UI (`#1`–`#9`, `RV-01`–`RV-06`, `RV-11`) and Stages `4C–4E` have NOT started.**
 
 ---
 
@@ -33,8 +33,9 @@ flowchart LR
 
 | Stage | Status | Endpoints Delivered | Route-Views Delivered | Cumulative Totals |
 |---|---|---|---|---|
-| **`Stage 4A`** | **`IN PR REVIEW` (`feature/phase-4a-database-audit`)** | `1` (`#29`) | `0` | `1 / 35` APIs · `0 / 14` Views |
-| **`Stage 4B`** | `NOT STARTED` | `9` (`#1`–`#9`) | `7` (`RV-01`–`RV-06`, `RV-11`: `4` new + `3` updated) | `10 / 35` APIs · `7 / 14` Views |
+| **`Stage 4A`** | **`CLOSED & MERGED` (`PR #6` @ `42d4de2`)** | `1` (`#29`) | `0` | `1 / 35` APIs · `0 / 14` Views |
+| **`Stage 4B (0009 DB Prereq)`** | **`IN PR REVIEW` (`feature/phase-4b-registration-routines`)** | `0` *(DB routines only)* | `0` | `1 / 35` APIs · `0 / 14` Views |
+| **`Stage 4B (App & UI)`** | `NOT STARTED` *(gated on `0009` PR merge)* | `9` (`#1`–`#9`) | `7` (`RV-01`–`RV-06`, `RV-11`: `4` new + `3` updated) | `10 / 35` APIs · `7 / 14` Views |
 | **`Stage 4C`** | `NOT STARTED` | `5` (`#10`–`#14`) | `1` (`RV-07`: `1` new, plus Step 3 in `RV-03`) | `15 / 35` APIs · `8 / 14` Views |
 | **`Stage 4D`** | `NOT STARTED` | `14` (`#15`–`#28`) | `4` (`RV-08`–`RV-10`, `RV-12`: `4` new, plus Step 4 in `RV-03`) | `29 / 35` APIs · `12 / 14` Views |
 | **`Stage 4E`** | `NOT STARTED` | `6` (`#30`–`#35`) | `2` (`RV-13`–`RV-14`: `2` new, plus `/platform` nav link) | **`35 / 35` APIs · `14 / 14` Views** |

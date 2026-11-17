@@ -130,6 +130,9 @@ describe('Phase 4 Stage 4A — Database Foundation, Concurrency Locks, RLS & Ten
       await runner.migrateUp();
 
       expect(await runner.rollbackLatest()).toBe(
+        '0009_phase4b_tenant_registration_routines',
+      );
+      expect(await runner.rollbackLatest()).toBe(
         '0008_phase4_invitations_outbox_and_integrity_routines',
       );
       expect(await runner.rollbackLatest()).toBe(
@@ -149,10 +152,11 @@ describe('Phase 4 Stage 4A — Database Foundation, Concurrency Locks, RLS & Ten
       );
       expect(postRollbackPerms.rows[0].cnt).toBe('14');
 
-      // Re-apply 0007 and 0008 cleanly
+      // Re-apply 0007, 0008, and 0009 cleanly
       expect(await runner.migrateUp()).toEqual([
         '0007_phase4_tenant_core_schema_and_audit',
         '0008_phase4_invitations_outbox_and_integrity_routines',
+        '0009_phase4b_tenant_registration_routines',
       ]);
     } finally {
       await migratorCheckPool.end();
