@@ -38,6 +38,7 @@ export interface AppEnvConfig {
   apiPort: number;
   corsAllowedOrigins: string[];
   swaggerEnabled: boolean;
+  tenantSelfRegistrationEnabled: boolean;
   database: {
     appUrl: string;
     migratorUrl: string;
@@ -331,6 +332,11 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppEnvConfi
       .map((s) => s.trim())
       .filter(Boolean),
     swaggerEnabled: parseStrictBoolean(env.SWAGGER_ENABLED, true, 'SWAGGER_ENABLED'),
+    tenantSelfRegistrationEnabled: parseStrictBoolean(
+      env.TENANT_SELF_REGISTRATION_ENABLED,
+      nodeEnv !== 'production',
+      'TENANT_SELF_REGISTRATION_ENABLED',
+    ),
     database: {
       appUrl,
       migratorUrl,
