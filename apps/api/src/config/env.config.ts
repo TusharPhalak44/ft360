@@ -334,7 +334,7 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppEnvConfi
     swaggerEnabled: parseStrictBoolean(env.SWAGGER_ENABLED, true, 'SWAGGER_ENABLED'),
     tenantSelfRegistrationEnabled: parseStrictBoolean(
       env.TENANT_SELF_REGISTRATION_ENABLED,
-      true,
+      nodeEnv !== 'production',
       'TENANT_SELF_REGISTRATION_ENABLED',
     ),
     database: {

@@ -771,4 +771,50 @@ describe('Phase 4 Stage 4B Unit Suite — Tenant Registration Backend', () => {
       ).rejects.toThrow(UnauthorizedException);
     });
   });
+
+  describe('Feature Toggle & Production Security Defaults', () => {
+    const dummyDbEnv = {
+      DATABASE_MIGRATOR_URL: 'postgresql://ft360_migrator:pw1@localhost:5434/ft360_dev',
+      DATABASE_APP_URL: 'postgresql://ft360_app:pw2@localhost:5434/ft360_dev',
+    };
+
+    it('defaults tenantSelfRegistrationEnabled to false in production when unspecified', () => {
+      const prodConfig = loadAppConfig({
+        ...dummyDbEnv,
+        NODE_ENV: 'production',
+        COOKIE_SECURE: 'true',
+        AUTH_JWT_SECRET: 'a'.repeat(32),
+      });
+      expect(prodConfig.tenantSelfRegistrationEnabled).toBe(false);
+    });
+
+    it('defaults tenantSelfRegistrationEnabled to true in development when unspecified', () => {
+      const devConfig = loadAppConfig({
+        ...dummyDbEnv,
+        NODE_ENV: 'development',
+      });
+      expect(devConfig.tenantSelfRegistrationEnabled).toBe(true);
+    });
+
+    it('honors explicit TENANT_SELF_REGISTRATION_ENABLED=true in production', () => {
+      const prodConfig = loadAppConfig({
+        ...dummyDbEnv,
+        NODE_ENV: 'production',
+        COOKIE_SECURE: 'true',
+        AUTH_JWT_SECRET: 'a'.repeat(32),
+        TENANT_SELF_REGISTRATION_ENABLED: 'true',
+      });
+      expect(prodConfig.tenantSelfRegistrationEnabled).toBe(true);
+    });
+
+    it('honors explicit TENANT_SELF_REGISTRATION_ENABLED=false in development', () => {
+      const devConfig = loadAppConfig({
+        ...dummyDbEnv,
+        NODE_ENV: 'development',
+        TENANT_SELF_REGISTRATION_ENABLED: 'false',
+      });
+      expect(devConfig.tenantSelfRegistrationEnabled).toBe(false);
+    });
+  });
 });
+
