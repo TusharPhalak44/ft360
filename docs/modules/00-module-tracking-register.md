@@ -14,10 +14,10 @@
 |---|---|
 | **Remote Repository (`origin`)** | `https://github.com/TusharPhalak44/ft360.git` |
 | **Default Protected Branch (`main`)** | Synchronized at `d416187` (Phase 3 Authentication promoted & post-merge Cloud CI green) |
-| **Active Integration Branch (`development`)** | Synchronized & verified at `4caf3d9` (following Phase 3 [PR #3](https://github.com/TusharPhalak44/ft360/pull/3) merge `627b3fe` and Phase 4 Planning [PR #5](https://github.com/TusharPhalak44/ft360/pull/5) merge `4caf3d9`; `0` force-pushes) |
-| **Active Feature Branch** | `feature/phase-4a-database-audit` (branched from `origin/development` @ `4caf3d9`) |
+| **Active Integration Branch (`development`)** | Synchronized & verified at `42d4de2` (following Phase 3 [PR #3](https://github.com/TusharPhalak44/ft360/pull/3) merge `627b3fe`, Phase 4 Planning [PR #5](https://github.com/TusharPhalak44/ft360/pull/5) merge `4caf3d9`, and Phase 4 Stage 4A [PR #6](https://github.com/TusharPhalak44/ft360/pull/6) approval `#5925270718` by `NakshtraSulakhe`, merge `42d4de2`, & Post-Merge Cloud CI [Run #43929316797](https://github.com/TusharPhalak44/ft360/actions/runs/43929316797) `completed / success`; `0` force-pushes) |
+| **Active Feature Branch** | `feature/phase-4b-registration-routines` (branched from `origin/development` @ `42d4de2`) |
 | **`main` & `development` Branch Protection** | **ACTIVE ON BOTH** (`strict` required check: `Build, Zero-ORM, Migrations, Unit, Integration & E2E`; `1` required PR approval; stale review dismissal; conversation resolution required; force-push & deletion disabled) |
-| **Next Authorized Gate** | **`IN REVIEW` (Phase 4 Stage 4A PR: `feature/phase-4a-database-audit -> development`)** — Automated gates passed (`52/52` unit, `37/37` PG18+Redis integration/concurrency/RLS, `2/2` Playwright E2E); awaiting independent review by `@NakshtraSulakhe` / `@manasikulkarni953`. **Stages `4B–4E` have NOT started.** |
+| **Next Authorized Gate** | **`IN REVIEW` (Phase 4B Prerequisite Migration `0009` PR: `feature/phase-4b-registration-routines -> development`)** — Automated gates passed (`52/52` unit, `42/42` PG18+Redis integration/concurrency/RLS incl. `0009-SEC-01..05`); awaiting independent review by `@NakshtraSulakhe` / `@manasikulkarni953`. **Stage 4B application APIs/UI and Stages `4C–4E` have NOT started.** |
 
 ---
 

@@ -57,10 +57,13 @@ describe('Phase 3 Authentication, Verification, Session Rotation, Password Reset
   beforeAll(async () => {
     config = loadAppConfig();
 
-    // IT-P3-01: Verify latest migrations (0008 -> 0007 -> 0006) rollback -> re-up cleanly
+    // IT-P3-01: Verify latest migrations (0009 -> 0008 -> 0007 -> 0006) rollback -> re-up cleanly
     const runner = new SqlMigrationRunner(config.database.migratorUrl);
     try {
       await runner.migrateUp();
+      expect(await runner.rollbackLatest()).toBe(
+        '0009_phase4b_tenant_registration_routines',
+      );
       expect(await runner.rollbackLatest()).toBe(
         '0008_phase4_invitations_outbox_and_integrity_routines',
       );
@@ -74,6 +77,7 @@ describe('Phase 3 Authentication, Verification, Session Rotation, Password Reset
         '0006_phase3_auth_security_remediation',
         '0007_phase4_tenant_core_schema_and_audit',
         '0008_phase4_invitations_outbox_and_integrity_routines',
+        '0009_phase4b_tenant_registration_routines',
       ]);
     } finally {
       await runner.close();

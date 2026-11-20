@@ -1,8 +1,8 @@
 # SQL Migrations Framework & Indexing Strategy
 
-**Last Updated:** 2026-11-16  
-**Status:** Phase 4 Stage 4A Active Specification (`0001`–`0008` Applied & Verified)  
-**Version:** 0.4.0
+**Last Updated:** 2026-11-17  
+**Status:** Phase 4B Database Prerequisite Specification (`0001`–`0009` Applied & Verified)  
+**Version:** 0.4.1
 
 ---
 
@@ -27,13 +27,20 @@ db/migrations/
 ├── 0007_phase4_tenant_core_schema_and_audit.up.sql
 ├── 0007_phase4_tenant_core_schema_and_audit.down.sql
 ├── 0008_phase4_invitations_outbox_and_integrity_routines.up.sql
-└── 0008_phase4_invitations_outbox_and_integrity_routines.down.sql
+├── 0008_phase4_invitations_outbox_and_integrity_routines.down.sql
+├── 0009_phase4b_tenant_registration_routines.up.sql
+└── 0009_phase4b_tenant_registration_routines.down.sql
 ```
 
+### Migration `0009` Scope (`0009_phase4b_tenant_registration_routines`)
+- Introduces **only** the two approved Phase 4B `SECURITY DEFINER` database routines (`public.fn_check_tenant_slug_available(CITEXT)` and `public.fn_tenant_provision_organization(...)`), owned by `ft360_migrator` with `SET search_path = pg_catalog, public, pg_temp`, `REVOKE ALL FROM PUBLIC`, and `GRANT EXECUTE TO ft360_app`.
+- Zero tables, columns, permissions, triggers, or indexes are added or altered in `0009`.
+- `0009.down.sql` drops only those two routines and deletes zero tenant, membership, session, audit, or user records.
+
 ### Migration Safety Rules
-1. **SHA-256 Checksum Immutability:** `schema_migrations` stores `checksum_sha256` for every applied `.up.sql`; `SqlMigrationRunner` aborts immediately if an applied migration file (`0001`–`0008`) is altered on disk.
+1. **SHA-256 Checksum Immutability:** `schema_migrations` stores `checksum_sha256` for every applied `.up.sql`; `SqlMigrationRunner` aborts immediately if an applied migration file (`0001`–`0009`) is altered on disk.
 2. **Advisory Lock Serialization:** Concurrent deploys serialize via `pg_advisory_lock`.
-3. **Clean-DB + Full Rollback Verification:** CI, `phase2-database-foundation-rls.int-spec.ts`, and `phase3-auth-workflows.int-spec.ts` (`IT-P3-01`) verify full clean-DB teardown (`0008` down to `schema_migrations` only), clean re-application (`0001`..`0008`), and incremental rollback/re-apply (`0008 -> 0007 -> 0006 -> 0007 -> 0008`).
+3. **Clean-DB + Full Rollback Verification:** CI, `phase2-database-foundation-rls.int-spec.ts`, `phase3-auth-workflows.int-spec.ts`, `phase4a-database-integrity-and-audit.int-spec.ts`, and `phase4b-registration-routines.int-spec.ts` verify full clean-DB teardown (`0009` down to `schema_migrations` only), clean re-application (`0001`..`0009`), and incremental rollback/re-apply (`0009 -> 0008 -> 0007 -> 0006 -> 0007 -> 0008 -> 0009`).
 
 ---
 
@@ -79,23 +86,20 @@ db/migrations/
    - `idx_auth_email_outbox_user_created ON auth_email_outbox (user_id, created_at DESC)`
 4. **Phase 4 Stage 4A Tenant Schema, Concurrency, Invitations & Audit Indexes (`0007`–`0008`):**
    - `uq_users_email_normalized ON users (lower(btrim(email::text)))` *(canonical normalized global email uniqueness)*
-   - `idx_tenants_created_by_user ON tenants (created_by_user_id, created_at DESC) WHERE created_by_user_id IS NOT NULL`
-   - `uq_tenant_memberships_primary_owner ON tenant_memberships (tenant_id) WHERE is_primary_owner = TRUE` *(at most 1 primary owner per tenant)*
-   - `idx_tos_status_updated ON tenant_onboarding_states (status, updated_at DESC)`
-   - `idx_tp_country_industry ON tenant_profiles (country_code, industry) WHERE country_code IS NOT NULL`
+   - `idx_tenants_created_by_user ON tenants (created_by_user_id) WHERE created_by_user_id IS NOT NULL`
+   - `uq_tenant_memberships_primary_owner ON tenant_memberships (tenant_id) WHERE is_primary_owner = TRUE AND status = 'ACTIVE'` *(at most 1 active primary owner per tenant)*
+   - `idx_tos_incomplete ON tenant_onboarding_states (onboarding_status, created_at DESC) WHERE onboarding_status = 'IN_PROGRESS'`
+   - `idx_tp_industry_country ON tenant_profiles (industry, country_code)`
    - `uq_tba_tenant_id_id ON tenant_branding_assets (tenant_id, id)`
    - `uq_tba_storage_key ON tenant_branding_assets (storage_key)`
-   - `idx_tba_tenant_kind_created ON tenant_branding_assets (tenant_id, asset_kind, created_at DESC)`
-   - `uq_tal_tenant_id_id ON tenant_audit_logs (tenant_id, id)`
-   - `idx_tal_tenant_created_id ON tenant_audit_logs (tenant_id, created_at DESC, id DESC)` *(deterministic cursor pagination for Endpoint `#29`)*
-   - `idx_tal_tenant_event_created ON tenant_audit_logs (tenant_id, event_type, created_at DESC)`
-   - `idx_tal_tenant_resource_created ON tenant_audit_logs (tenant_id, resource_type, resource_id, created_at DESC)`
-   - `idx_tal_tenant_actor_created ON tenant_audit_logs (tenant_id, actor_user_id, created_at DESC) WHERE actor_user_id IS NOT NULL`
-   - `idx_tal_correlation_id ON tenant_audit_logs (correlation_id)`
+   - `idx_tba_tenant_kind_status ON tenant_branding_assets (tenant_id, asset_kind, status)`
+   - `idx_tal_tenant_created ON tenant_audit_logs (tenant_id, created_at DESC, id DESC)` *(deterministic cursor pagination for Endpoint `#29`)*
+   - `idx_tal_tenant_event ON tenant_audit_logs (tenant_id, event_type, created_at DESC)`
+   - `idx_tal_tenant_resource ON tenant_audit_logs (tenant_id, resource_type, resource_id)`
+   - `idx_tal_correlation ON tenant_audit_logs (correlation_id)`
    - `uq_ti_tenant_id_id ON tenant_invitations (tenant_id, id)`
    - `uq_ti_token_hash ON tenant_invitations (token_hash)`
-   - `uq_tenant_invitations_pending_email ON tenant_invitations (tenant_id, email) WHERE status = 'PENDING'`
+   - `uq_ti_pending_tenant_email ON tenant_invitations (tenant_id, invited_email) WHERE status = 'PENDING'`
    - `idx_ti_tenant_status_created ON tenant_invitations (tenant_id, status, created_at DESC)`
-   - `idx_ti_email_status ON tenant_invitations (email, status)`
-   - `idx_aeo_tenant_invitation ON auth_email_outbox (tenant_id, invitation_id, created_at DESC) WHERE invitation_id IS NOT NULL`
-   - `idx_aeo_initiated_by_user ON auth_email_outbox (initiated_by_user_id, created_at DESC) WHERE initiated_by_user_id IS NOT NULL`
+   - `idx_ti_invited_email ON tenant_invitations (invited_email, status)`
+   - `idx_auth_email_outbox_invitation ON auth_email_outbox (tenant_id, invitation_id, created_at DESC) WHERE invitation_id IS NOT NULL`
