@@ -58,7 +58,7 @@ describe('Phase 4 Stage 4B-API-01: Tenant Registration Endpoints Integration Sui
     );
     await pool.query(
       `DELETE FROM public.auth_audit_logs
-        WHERE correlation_id LIKE '0195f3b4-%'
+        WHERE correlation_id::text LIKE '0195f3b4-%'
            OR metadata->>'slug' LIKE 'p4b-api-%'`,
     );
     await pool.query(`DELETE FROM public.tenants WHERE slug LIKE 'p4b-api-%'`);
