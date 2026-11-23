@@ -13,6 +13,7 @@ import type {
 } from '@ft360/shared-types';
 import { AppModule } from '../../src/app.module';
 import { configureNestApp } from '../../src/bootstrap';
+import { RedisService } from '../../src/cache/redis.service';
 import { APP_CONFIG, loadAppConfig, type AppEnvConfig } from '../../src/config/env.config';
 import { SqlMigrationRunner } from '../../src/database/migrations/migration-runner';
 import { TenantTransactionManager } from '../../src/database/tenant-transaction.manager';
@@ -29,6 +30,7 @@ describe('Phase 4 Stage 4B-API-01: Tenant Registration Endpoints Integration Sui
   let txManager: TenantTransactionManager;
   let platformRepo: PlatformDirectoryRepository;
   let tokenService: TokenService;
+  let redisService: RedisService;
   let migratorPool: Pool;
 
   let verifiedUser: UserEntity;
@@ -48,6 +50,57 @@ describe('Phase 4 Stage 4B-API-01: Tenant Registration Endpoints Integration Sui
   let quotaUserToken: string;
 
   let existingTenant: TenantEntity;
+
+  interface RedisTestClient {
+    status: string;
+    keys(pattern: string): Promise<string[]>;
+    del(...keys: string[]): Promise<number>;
+    once(event: string, listener: (...args: unknown[]) => void): void;
+    removeListener(event: string, listener: (...args: unknown[]) => void): void;
+  }
+
+  async function waitForRedisReady(client: RedisTestClient): Promise<void> {
+    if (client.status === 'ready') return;
+    await new Promise<void>((resolve, reject) => {
+      if (client.status === 'ready') return resolve();
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(
+          new Error(
+            `Redis client failed to reach ready state within 5s (current status: ${client.status})`,
+          ),
+        );
+      }, 5000);
+      const onReady = () => {
+        cleanup();
+        resolve();
+      };
+      const onError = (err: unknown) => {
+        cleanup();
+        reject(err);
+      };
+      const cleanup = () => {
+        clearTimeout(timer);
+        client.removeListener('ready', onReady);
+        client.removeListener('error', onError);
+      };
+      client.once('ready', onReady);
+      client.once('error', onError);
+    });
+  }
+
+  async function cleanRateLimits(): Promise<void> {
+    if (!redisService) return;
+    const client = (redisService as unknown as { client: RedisTestClient }).client;
+    if (!client || client.status === 'end' || client.status === 'close') return;
+    if (client.status !== 'ready') {
+      await waitForRedisReady(client);
+    }
+    const keys = await client.keys('auth:rl_*');
+    if (keys.length > 0) {
+      await client.del(...keys);
+    }
+  }
 
   async function cleanFixtures(pool: Pool): Promise<void> {
     await pool.query(
@@ -143,6 +196,8 @@ describe('Phase 4 Stage 4B-API-01: Tenant Registration Endpoints Integration Sui
     txManager = app.get(TenantTransactionManager);
     platformRepo = app.get(PlatformDirectoryRepository);
     tokenService = app.get(TokenService);
+    redisService = app.get(RedisService);
+    await cleanRateLimits();
 
     // 1. Seed verified user
     verifiedUser = await txManager.withSystemBootstrapTransaction((tx) =>
@@ -232,6 +287,7 @@ describe('Phase 4 Stage 4B-API-01: Tenant Registration Endpoints Integration Sui
         await cleanFixtures(migratorPool);
         await migratorPool.end();
       }
+      await cleanRateLimits();
     } finally {
       if (app) {
         await app.close();
@@ -575,6 +631,10 @@ describe('Phase 4 Stage 4B-API-01: Tenant Registration Endpoints Integration Sui
     });
 
     it('enforces 5-tenant ownership quota limit (422 TENANT_CREATION_QUOTA_EXCEEDED)', async () => {
+      // Clear rate-limit counters before beginning the quota test so preceding test requests
+      // from 127.0.0.1 do not prematurely trip the 5 req/hour IP rate limit.
+      await cleanRateLimits();
+
       // Provision 5 tenants for quotaUser
       for (let i = 1; i <= 5; i++) {
         const slug = `p4b-api-quota-org-${i}`;
@@ -595,6 +655,11 @@ describe('Phase 4 Stage 4B-API-01: Tenant Registration Endpoints Integration Sui
 
         expect(res.body.success).toBe(true);
       }
+
+      // Isolate the 6th registration attempt from the endpoint rate limiter (5 req/hr per user/IP):
+      // clear the registration rate-limit keys so the 6th request reaches PostgreSQL to verify
+      // database-level D2 tenant ownership quota enforcement (422 TENANT_CREATION_QUOTA_EXCEEDED).
+      await cleanRateLimits();
 
       // 6th registration attempt must fail with 422 TENANT_CREATION_QUOTA_EXCEEDED
       const failRes = await request(app.getHttpServer())
