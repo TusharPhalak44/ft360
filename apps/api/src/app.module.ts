@@ -14,7 +14,10 @@ import { BrandingModule } from './modules/branding/branding.module';
 import { FoundationDbModule } from './modules/foundation-db/foundation-db.module';
 import { HealthModule } from './modules/health/health.module';
 import { PlatformBoundaryModule } from './modules/platform-boundary/platform-boundary.module';
+import { OrganizationProfileModule } from './modules/organization-profile/organization-profile.module';
+import { OrganizationSettingsModule } from './modules/organization-settings/organization-settings.module';
 import { TenantAuditModule } from './modules/tenant-audit/tenant-audit.module';
+import { TenantOnboardingModule } from './modules/tenant-onboarding/tenant-onboarding.module';
 import { TenantRegistrationModule } from './modules/tenant-registration/tenant-registration.module';
 import { WorkspaceBoundaryModule } from './modules/workspace-boundary/workspace-boundary.module';
 
@@ -30,6 +33,9 @@ import { WorkspaceBoundaryModule } from './modules/workspace-boundary/workspace-
     HealthModule,
     TenantAuditModule,
     TenantRegistrationModule,
+    TenantOnboardingModule,
+    OrganizationProfileModule,
+    OrganizationSettingsModule,
     WorkspaceBoundaryModule,
     PlatformBoundaryModule,
   ],

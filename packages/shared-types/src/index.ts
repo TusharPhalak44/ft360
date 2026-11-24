@@ -408,4 +408,142 @@ export interface TenantRegistrationResponsePayload {
   effectiveTenantPermissions: string[];
 }
 
+// =============================================================================
+// Phase 4 (Stage 4B-API-02) – Onboarding Wizard, Profile & Settings Contracts
+// =============================================================================
+
+export type OnboardingStatus = 'IN_PROGRESS' | 'COMPLETED';
+
+export type OnboardingStep =
+  | 'ORG_PROFILE'
+  | 'ORG_SETTINGS'
+  | 'ORG_BRANDING'
+  | 'TEAM_INVITES'
+  | 'REVIEW_COMPLETE';
+
+export type OnboardingStepId =
+  | 'org-profile'
+  | 'org-settings'
+  | 'org-branding'
+  | 'team-invites';
+
+export interface StepState {
+  completed: boolean;
+  completedAt: string | null;
+  skipped?: boolean;
+}
+
+export interface TenantOnboardingStatePayload {
+  tenantId: string;
+  onboardingStatus: OnboardingStatus;
+  currentStep: OnboardingStep;
+  steps: {
+    orgProfile: { completed: boolean; completedAt: string | null };
+    orgSettings: { completed: boolean; completedAt: string | null };
+    orgBranding: { completed: boolean; completedAt: string | null; skipped: boolean };
+    teamInvites: { completed: boolean; completedAt: string | null; skipped: boolean };
+  };
+  completedAt: string | null;
+  completedByMembershipId: string | null;
+  version: number;
+}
+
+export interface UpdateOnboardingStepPayload {
+  skipped?: boolean;
+  payload?: Record<string, unknown>;
+  expectedVersion: number;
+}
+
+export interface CompleteOnboardingRequest {
+  expectedVersion: number;
+}
+
+export interface CompleteOnboardingPayload {
+  onboardingStatus: 'COMPLETED';
+  completedAt: string;
+  version: number;
+}
+
+export interface OrganizationProfilePayload {
+  tenantId: string;
+  slug: string;
+  displayName: string;
+  legalName: string;
+  status: TenantStatus;
+  organizationType: OrganizationType;
+  industry: IndustryCode;
+  companySizeBand: string | null;
+  registrationNumber: string | null;
+  taxId: string | null;
+  websiteUrl: string | null;
+  primaryContactName: string | null;
+  primaryContactEmail: string | null;
+  primaryContactPhoneE164: string | null;
+  supportEmail: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  stateProvince: string | null;
+  postalCode: string | null;
+  countryCode: string;
+  aboutDescription: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateOrganizationProfileRequest {
+  displayName: string;
+  legalName: string;
+  organizationType: OrganizationType;
+  industry: IndustryCode;
+  companySizeBand?: string | null;
+  registrationNumber?: string | null;
+  taxId?: string | null;
+  websiteUrl?: string | null;
+  primaryContactName?: string | null;
+  primaryContactEmail?: string | null;
+  primaryContactPhoneE164?: string | null;
+  supportEmail?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  stateProvince?: string | null;
+  postalCode?: string | null;
+  countryCode: string;
+  aboutDescription?: string | null;
+  expectedVersion: number;
+}
+
+export interface TenantSettingsPayload {
+  tenantId: string;
+  timezone: string;
+  locale: string;
+  dateFormat: string;
+  timeFormat: string;
+  defaultCurrency: string;
+  weekStartDay: number;
+  fiscalYearStartMonth: number;
+  invitationExpiryHours: number;
+  allowMemberDirectoryView: boolean;
+  updatedByMembershipId: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateTenantSettingsRequest {
+  timezone: string;
+  locale: string;
+  dateFormat: string;
+  timeFormat: string;
+  defaultCurrency: string;
+  weekStartDay: number;
+  fiscalYearStartMonth: number;
+  invitationExpiryHours: number;
+  allowMemberDirectoryView: boolean;
+  expectedVersion: number;
+}
+
+
 
