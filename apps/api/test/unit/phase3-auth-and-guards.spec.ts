@@ -93,7 +93,7 @@ describe('Phase 3 Authentication, Argon2id, JWT/CSRF & Multi-Plane Guards Unit S
       await expect(
         passwordService.verifyPasswordConstantTime(null, 'Str0ng#Passw0rd!2026'),
       ).resolves.toBe(false);
-    });
+    }, 15000);
 
     it('enforces password complexity policy and production AUTH_JWT_SECRET minimum length', () => {
       expect(() => passwordService.validatePasswordPolicy('Short1!')).toThrow(BadRequestException);

@@ -345,4 +345,67 @@ export interface TenantAuditLogPagePayload {
   nextCursor: string | null;
 }
 
+// =============================================================================
+// Phase 4 (Stage 4B) – Tenant Registration & Onboarding Contracts
+// =============================================================================
+
+export type OrganizationType =
+  | 'COMPANY'
+  | 'AGENCY'
+  | 'ENTERPRISE'
+  | 'NONPROFIT'
+  | 'GOVERNMENT'
+  | 'SOLE_PROPRIETORSHIP'
+  | 'PARTNERSHIP'
+  | 'OTHER';
+
+export type IndustryCode =
+  | 'SAAS_TECHNOLOGY'
+  | 'MARKETING_AGENCY'
+  | 'FINANCE_FINTECH'
+  | 'HEALTHCARE'
+  | 'ECOMMERCE_RETAIL'
+  | 'REAL_ESTATE'
+  | 'EDUCATION'
+  | 'MANUFACTURING'
+  | 'CONSULTING'
+  | 'LOGISTICS'
+  | 'OTHER';
+
+export interface CheckSlugAvailabilityQuery {
+  slug: string;
+}
+
+export interface CheckSlugAvailabilityResponsePayload {
+  slug: string;
+  available: boolean;
+}
+
+export interface TenantRegistrationRequestPayload {
+  displayName: string;
+  legalName: string;
+  slug: string;
+  organizationType: OrganizationType;
+  industry: IndustryCode;
+  countryCode: string;
+  defaultTimezone: string;
+  defaultCurrency: string;
+}
+
+export interface TenantRegistrationResponsePayload {
+  tenant: TenantEntity;
+  membership: {
+    id: string;
+    membershipType: MembershipType;
+    status: MembershipStatus;
+    isPrimaryOwner: boolean;
+  };
+  onboarding: {
+    onboardingStatus: 'IN_PROGRESS' | 'COMPLETED';
+    currentStep: string;
+  };
+  activeSessionBound: true;
+  effectiveTenantPermissions: string[];
+}
+
 

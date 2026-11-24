@@ -1,8 +1,11 @@
 import {
+  BadRequestException,
   Controller,
   Get,
+  NotFoundException,
   Req,
   UseGuards,
+  type ArgumentsHost,
   type CanActivate,
   type ExecutionContext,
   type INestApplication,
@@ -254,6 +257,118 @@ describe('NestJS HTTP Pipeline, Swagger OpenAPI, Error Envelopes & Membership Gu
     expect(allowed.body.data).toEqual({
       verifiedTenantId: TENANT_ALPHA,
       verifiedMembershipId: MEMBERSHIP_ALPHA,
+    });
+  });
+
+  describe('GlobalExceptionFilter Unit Tests', () => {
+    let filter: GlobalExceptionFilter;
+
+    beforeEach(() => {
+      filter = new GlobalExceptionFilter();
+    });
+
+    function createMockHost(incomingCorrelationId?: string) {
+      const mockJson = jest.fn();
+      const mockStatus = jest.fn().mockReturnValue({ json: mockJson });
+      const mockSetHeader = jest.fn();
+      const host = {
+        switchToHttp: () => ({
+          getRequest: () => ({
+            headers: incomingCorrelationId ? { 'x-correlation-id': incomingCorrelationId } : {},
+            correlationId: incomingCorrelationId ?? '0195f3a2-7c40-7b12-9a10-4e8d21b97777',
+          }),
+          getResponse: () => ({
+            setHeader: mockSetHeader,
+            status: mockStatus,
+          }),
+        }),
+      } as unknown as ArgumentsHost;
+
+      return { host, mockStatus, mockJson, mockSetHeader };
+    }
+
+    it('classifies DTO / class-validator array messages as VALIDATION_ERROR with HTTP 400', () => {
+      const { host, mockStatus, mockJson } = createMockHost();
+      const exception = new BadRequestException({
+        statusCode: 400,
+        message: ['slug must be a valid slug', 'displayName must not be empty'],
+        error: 'Bad Request',
+      });
+
+      filter.catch(exception, host);
+
+      expect(mockStatus).toHaveBeenCalledWith(400);
+      expect(mockJson).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Request validation failed.',
+            details: [
+              { issue: 'slug must be a valid slug' },
+              { issue: 'displayName must not be empty' },
+            ],
+          },
+        }),
+      );
+    });
+
+    it('preserves BAD_REQUEST for ordinary string BadRequestException', () => {
+      const { host, mockStatus, mockJson } = createMockHost();
+      const exception = new BadRequestException('Ordinary bad request message');
+
+      filter.catch(exception, host);
+
+      expect(mockStatus).toHaveBeenCalledWith(400);
+      expect(mockJson).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: {
+            code: 'BAD_REQUEST',
+            message: 'Ordinary bad request message',
+          },
+        }),
+      );
+    });
+
+    it('preserves explicit custom error codes on BadRequestException', () => {
+      const { host, mockStatus, mockJson } = createMockHost();
+      const exception = new BadRequestException({
+        code: 'CUSTOM_VALIDATION_FAILURE',
+        message: ['custom problem'],
+      });
+
+      filter.catch(exception, host);
+
+      expect(mockStatus).toHaveBeenCalledWith(400);
+      expect(mockJson).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: {
+            code: 'CUSTOM_VALIDATION_FAILURE',
+            message: 'Request validation failed.',
+            details: [{ issue: 'custom problem' }],
+          },
+        }),
+      );
+    });
+
+    it('preserves other HTTP status mappings without alteration', () => {
+      const { host, mockStatus, mockJson } = createMockHost();
+      const notFound = new NotFoundException('Resource missing');
+
+      filter.catch(notFound, host);
+
+      expect(mockStatus).toHaveBeenCalledWith(404);
+      expect(mockJson).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: {
+            code: 'RESOURCE_NOT_FOUND',
+            message: 'Resource missing',
+          },
+        }),
+      );
     });
   });
 });

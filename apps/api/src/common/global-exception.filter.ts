@@ -47,6 +47,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         const bodyObj = responseBody as Record<string, unknown>;
         code = typeof bodyObj.code === 'string' ? bodyObj.code : this.statusToDefaultCode(status);
         if (Array.isArray(bodyObj.message)) {
+          if (typeof bodyObj.code !== 'string') {
+            code = 'VALIDATION_ERROR';
+          }
           message = 'Request validation failed.';
           details = bodyObj.message.map((issue) => ({ issue: String(issue) }));
         } else if (typeof bodyObj.message === 'string') {
