@@ -187,7 +187,7 @@ describe('Phase 4 Stage 4B-API-02: Onboarding, Profile & Settings Integration Su
     // 1. Seed verified test user 1 (Owner of Alpha)
     const user1Res = await migratorPool.query<UserEntity>(
       `INSERT INTO public.users (
-         email, password_hash, full_name, status, email_verified, email_verified_at, created_at, updated_at
+         email, password_hash, full_name, status, email_verified, created_at, updated_at
        )
        VALUES (
          'owner1@p4b-obs.test',
@@ -195,7 +195,6 @@ describe('Phase 4 Stage 4B-API-02: Onboarding, Profile & Settings Integration Su
          'Owner Alpha',
          'ACTIVE',
          TRUE,
-         NOW(),
          NOW(),
          NOW()
        )
@@ -206,7 +205,7 @@ describe('Phase 4 Stage 4B-API-02: Onboarding, Profile & Settings Integration Su
     // 2. Seed verified test user 2 (Owner of Beta)
     const user2Res = await migratorPool.query<UserEntity>(
       `INSERT INTO public.users (
-         email, password_hash, full_name, status, email_verified, email_verified_at, created_at, updated_at
+         email, password_hash, full_name, status, email_verified, created_at, updated_at
        )
        VALUES (
          'owner2@p4b-obs.test',
@@ -214,7 +213,6 @@ describe('Phase 4 Stage 4B-API-02: Onboarding, Profile & Settings Integration Su
          'Owner Beta',
          'ACTIVE',
          TRUE,
-         NOW(),
          NOW(),
          NOW()
        )
