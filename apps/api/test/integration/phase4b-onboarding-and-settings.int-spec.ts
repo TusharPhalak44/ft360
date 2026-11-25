@@ -110,18 +110,27 @@ describe('Phase 4 Stage 4B-API-02: Onboarding, Profile & Settings Integration Su
     tenantId: string | null = null,
     membershipId: string | null = null,
   ): Promise<{ sessionId: string; token: string }> {
+    let resolvedMembershipId = membershipId;
+    if (tenantId && !resolvedMembershipId) {
+      const memberLookup = await migratorPool.query<{ id: string }>(
+        `SELECT id FROM public.tenant_memberships WHERE tenant_id = $1::uuid LIMIT 1`,
+        [tenantId],
+      );
+      resolvedMembershipId = memberLookup.rows[0]?.id ?? null;
+    }
+
     const res = await migratorPool.query<{ id: string }>(
       `INSERT INTO public.auth_sessions (
-         user_id, refresh_token_hash, csrf_secret_hash, created_at, idle_expires_at, expires_at
+         user_id, active_tenant_id, active_membership_id, refresh_token_hash, csrf_secret_hash, created_at, idle_expires_at, expires_at
        )
        VALUES (
-         $1::uuid, $2, $3,
+         $1::uuid, $2::uuid, $3::uuid, $4, $5,
          NOW(),
          NOW() + INTERVAL '1 hour',
          NOW() + INTERVAL '24 hours'
        )
        RETURNING id`,
-      [userId, randomSha256Hex(), randomSha256Hex()],
+      [userId, tenantId, resolvedMembershipId, randomSha256Hex(), randomSha256Hex()],
     );
 
     const sessionId = res.rows[0].id;
@@ -129,7 +138,7 @@ describe('Phase 4 Stage 4B-API-02: Onboarding, Profile & Settings Integration Su
       userId,
       sessionId,
       activeTenantId: tenantId,
-      activeMembershipId: membershipId,
+      activeMembershipId: resolvedMembershipId,
       isPlatformSuperAdmin: false,
     });
 
