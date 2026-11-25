@@ -32,7 +32,7 @@
 | ID | Module Name | Wave / Phase | Lead Dev | Dev Status | DB | API | UI | Unit | Integ | Sec | QA | UAT | Defects | Updated | Ver |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | **M01** | Platform Super Admin | Phase 3–8 | Tushar | `IN DEVELOPMENT (4A DB)` | `CODE REVIEW (0002–0008)` | `QA APPROVED (P3)` | `QA APPROVED (P3)` | `PASSED` | `PASSED` | `PASSED` | `IN REVIEW (4A DB)` | `PENDING` | 0 | 2026-11-16 | 0.4.0 |
-| **M02** | Tenant Registration & Mgmt | Phase 2–4 | Tushar | `IN DEVELOPMENT (STAGE 4B-API-01 VERIFIED)` | `QA APPROVED (0003, 0007–0009)` | `IN REVIEW (STAGE 4B-API-01)` | `NOT STARTED (4B UI)` | `PASSED` | `PASSED` | `PASSED` | `IN REVIEW (STAGE 4B)` | `PENDING` | 0 | 2026-11-20 | 0.4.1 |
+| **M02** | Tenant Registration & Mgmt | Phase 2–4 | Tushar | `IN DEVELOPMENT (STAGE 4B-API-01 MERGED)` | `QA APPROVED (0003, 0007–0009)` | `QA APPROVED (STAGE 4B-API-01)` | `NOT STARTED (4B UI)` | `PASSED` | `PASSED` | `PASSED` | `QA APPROVED (STAGE 4B-API-01)` | `PENDING` | 0 | 2026-11-24 | 0.4.2 |
 | **M03** | Authentication & User Mgmt | Phase 2–3 | Mansi | `COMPLETED (P3) + 4A SYNC` | `QA APPROVED (0003, 0005–0008)` | `QA APPROVED (P3)` | `QA APPROVED (P3)` | `PASSED` | `PASSED` | `PASSED` | `QA APPROVED (P3)` | `PENDING` | 0 | 2026-11-16 | 0.4.0 |
 | **M04** | Organization Management | Phase 2–8 | Nakshatra | `CODE REVIEW (STAGE 4A DB)` | `CODE REVIEW (0003, 0007–0008)` | `QA APPROVED (ORG SWITCH)` | `QA APPROVED (ORG SWITCH)` | `PASSED` | `PASSED` | `PASSED` | `IN REVIEW (STAGE 4A)` | `PENDING` | 0 | 2026-11-16 | 0.4.0 |
 | **M05** | Roles & Permissions | Phase 2–5 | Mansi | `CODE REVIEW (4A GUARD)` | `CODE REVIEW (0004–0008)` | `CODE REVIEW (PERM GUARD)` | `QA APPROVED (BOUNDARY)` | `PASSED` | `PASSED` | `PASSED` | `IN REVIEW (STAGE 4A)` | `PENDING` | 0 | 2026-11-16 | 0.4.0 |
@@ -97,22 +97,22 @@
 - **Description:** Self-service (`TRIAL`, `<= 5` owned tenants) and platform-assisted tenant provisioning, 4-step onboarding wizard, 6-state lifecycle transitions (`PROVISIONING`, `TRIAL`, `ACTIVE`, `SUSPENDED`, `DEACTIVATED`, `CANCELLED` with `OD-P1`), and immediate 4-layer PostgreSQL/Redis suspension enforcement.
 - **Requirements:** Atomic tenant + owner membership + companion rows + default roles provisioning, slug validation, suspension kill-switch across API/PG/Redis/Workers.
 - **Assigned Developer:** Tushar (Support: Nakshatra Onboarding UI, Mansi Security Tests)
-- **Development Status:** `IN DEVELOPMENT (STAGE 4B-API-01 IMPLEMENTED)`
+- **Development Status:** `IN DEVELOPMENT (STAGE 4B-API-01 MERGED)`
 - **Database Status:** `QA APPROVED (0003, 0007–0009)` (`tenants` extended, `tenant_onboarding_states`, `fn_check_tenant_slug_available`, `fn_tenant_provision_organization`, `fn_platform_transition_tenant_status`, `fn_is_current_tenant_operational`, `fn_assert_tenant_operational` merged in PR #7)
-- **API Status:** `IN REVIEW (STAGE 4B-API-01)` (Endpoints `#1` `GET /api/v1/tenants/slug-availability` & `#2` `POST /api/v1/tenants/register` implemented in `TenantRegistrationModule`)
+- **API Status:** `QA APPROVED (STAGE 4B-API-01)` (Endpoints `#1` `GET /api/v1/tenants/slug-availability` & `#2` `POST /api/v1/tenants/register` merged in PR #8 @ `f99f609`)
 - **Frontend Status:** `NOT STARTED` (`RV-01`–`RV-06`, `RV-11` scheduled)
-- **Unit Test Status:** `PASSED` (`UT-P4-08`, `UT-P4-01`, `phase4b-tenant-registration.spec.ts` 27/27 passed)
-- **Integration Test Status:** `PASSED` (`DB-P4-01..07`, `RLS-P4-01..06`, `phase4b-registration-routines.int-spec.ts` 42/42, `phase4b-tenant-registration-api.int-spec.ts` authored)
+- **Unit Test Status:** `PASSED` (`UT-P4-08`, `UT-P4-01`, `phase4b-tenant-registration.spec.ts` 27/27 passed, total suite 87/87 passed)
+- **Integration Test Status:** `PASSED` (`DB-P4-01..07`, `RLS-P4-01..06`, `phase4b-registration-routines.int-spec.ts` 42/42, `phase4b-tenant-registration-api.int-spec.ts` 8/8 passed)
 - **Security Test Status:** `PASSED` (Stage 4A DB, Stage 4B Migration 0009 routines, multi-tier rate limiter lockout & Redis fail-closed 503)
-- **QA Status:** `IN REVIEW (STAGE 4B-API-01)`
+- **QA Status:** `QA APPROVED (STAGE 4B-API-01)`
 - **UAT Status:** `PENDING`
 - **Outstanding Defects:** None (`0`)
-- **Pending Tasks:** Stage 4B-API-01 PR review -> Stage 4B Onboarding & Profile/Settings APIs (`#3`–`#9`) -> UI (`RV-01`–`RV-06`, `RV-11`).
-- **GitHub Issue / PR References:** [PR #1](https://github.com/TusharPhalak44/ft360/pull/1) (`8746ba5`); [PR #5](https://github.com/TusharPhalak44/ft360/pull/5) (`4caf3d9`); [PR #6](https://github.com/TusharPhalak44/ft360/pull/6) (`42d4de2`); [PR #7](https://github.com/TusharPhalak44/ft360/pull/7) (`d901525`); `feature/phase-4b-registration-api`
+- **Pending Tasks:** Stage 4B UI (`RV-01`–`RV-06`, `RV-11`) -> Stage 4C Branding.
+- **GitHub Issue / PR References:** [PR #1](https://github.com/TusharPhalak44/ft360/pull/1) (`8746ba5`); [PR #5](https://github.com/TusharPhalak44/ft360/pull/5) (`4caf3d9`); [PR #6](https://github.com/TusharPhalak44/ft360/pull/6) (`42d4de2`); [PR #7](https://github.com/TusharPhalak44/ft360/pull/7) (`d901525`); [PR #8](https://github.com/TusharPhalak44/ft360/pull/8) (`f99f609`)
 - **Test Report References:** [03-phase-2-test-report.md](file:///d:/FT360/docs/testing/03-phase-2-test-report.md), [05-phase-4-test-report.md](file:///d:/FT360/docs/testing/05-phase-4-test-report.md)
-- **Approval Details:** Phase 2 Merged (`8746ba5`); Phase 4 Plan Merged (`4caf3d9`); Migration 0009 Merged (`d901525`)
-- **Last Updated Date:** `2026-11-20`
-- **Version Number:** `0.4.1`
+- **Approval Details:** Phase 2 Merged (`8746ba5`); Phase 4 Plan Merged (`4caf3d9`); Migration 0009 Merged (`d901525`); Stage 4B-API-01 Merged (`f99f609`)
+- **Last Updated Date:** `2026-11-24`
+- **Version Number:** `0.4.2`
 
 ### M03 – Authentication and User Management
 - **Module ID:** `M03`
@@ -143,15 +143,15 @@
 - **Assigned Developer:** Nakshatra (Support: Tushar APIs, Mansi Invitations & RLS QA)
 - **Development Status:** `CODE REVIEW (STAGE 4A DB FOUNDATION)`
 - **Database Status:** `CODE REVIEW (0003, 0005, 0007–0008)` (`tenant_profiles`, `tenant_settings`, `tenant_branding_assets`, `tenant_branding_settings`, `tenant_invitations`, `uq_tenant_memberships_primary_owner`, serialized last-admin trigger, `fn_tenant_*` / `fn_invitation_*` routines)
-- **API Status:** `QA APPROVED (P3 ORG SWITCH)` (Stages `4B–4D` APIs `#6`–`#28` not started)
-- **Frontend Status:** `QA APPROVED (P3 ORG SWITCH)` (Stages `4B–4D` UI `RV-05`–`RV-10`, `RV-12` not started)
+- **API Status:** `QA APPROVED (P3 ORG SWITCH)` + `COMPLETED (STAGE 4B-API-02: APIs #6, #7, #8, #9)`
+- **Frontend Status:** `QA APPROVED (P3 ORG SWITCH)` (Stages `4B–4D` UI `RV-05`–`RV-10`, `RV-12` scheduled)
 - **Unit Test Status:** `PASSED`
-- **Integration Test Status:** `PASSED` (`DB-P4-01..07`, `RLS-P4-01..06`)
+- **Integration Test Status:** `PASSED` (`DB-P4-01..07`, `RLS-P4-01..06`, `phase4b-onboarding-and-settings.int-spec.ts` authored)
 - **Security Test Status:** `PASSED` (`SEC-P4-08`, `SEC-P4-13`, `SEC-P4-17`)
-- **QA Status:** `IN REVIEW (STAGE 4A PR)`
+- **QA Status:** `IN REVIEW (STAGE 4B-API-02)`
 - **UAT Status:** `PENDING`
 - **Outstanding Defects:** None (`0`)
-- **Pending Tasks:** Stage 4A PR merge -> Stage 4B Profile/Settings -> Stage 4C Branding/`sharp`/S3 -> Stage 4D Invitations/Members/Admins.
+- **Pending Tasks:** Stage 4B UI (`RV-05`, `RV-06`) -> Stage 4C Branding/`sharp`/S3 -> Stage 4D Invitations/Members/Admins.
 - **GitHub Issue / PR References:** [PR #3](https://github.com/TusharPhalak44/ft360/pull/3) (`627b3fe`); [PR #5](https://github.com/TusharPhalak44/ft360/pull/5) (`4caf3d9`); Stage 4A PR (`feature/phase-4a-database-audit -> development`)
 - **Test Report References:** [04-phase-3-test-report.md](file:///d:/FT360/docs/testing/04-phase-3-test-report.md), [05-phase-4-test-report.md](file:///d:/FT360/docs/testing/05-phase-4-test-report.md)
 - **Approval Details:** Phase 3 Merged (`d416187`); Phase 4 Plan Merged (`4caf3d9`)
